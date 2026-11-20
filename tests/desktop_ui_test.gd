@@ -50,6 +50,16 @@ func run() -> void:
 		inside(game.ui.dialog.find_children("*","PanelContainer",true,false)[0],"Finestra "+key)
 		game.ui.close_dialog()
 	check(game.lan.role=="","Chiudere la LAN rilascia la stanza")
+	# Una stanza trovata in rete si apre con un solo clic, senza digitare il codice.
+	game.lan.rooms["192.168.1.9"] = {"ip":"192.168.1.9","name":"Prova","code":"123456","seen":Time.get_ticks_msec()}
+	game.lan.rooms["192.168.1.10"] = {"ip":"192.168.1.10","name":"Vecchia","code":"","seen":Time.get_ticks_msec()}
+	game.ui.show_lan()
+	await snapshot("lan-rooms")
+	var direct: Array = game.ui.dialog.find_children("*","Button",true,false).filter(func(b):return b.text.begins_with("ENTRA"))
+	var manual: Array = game.ui.dialog.find_children("*","Button",true,false).filter(func(b):return b.text.ends_with("serve il codice"))
+	check(direct.size()==1 and manual.size()==1,"Stanze vicine: ingresso diretto e stanza senza codice")
+	game.ui.close_dialog()
+	game.lan.rooms.clear()
 	# La saga mostra un pannello Pass con la posizione di scorrimento conservata dopo ogni acquisto.
 	game.progression.data.xp = 5000
 	game.ui.show_pass()

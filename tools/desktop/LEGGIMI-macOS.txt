@@ -1,4 +1,4 @@
-SESTRIA 4.4 per macOS (Intel e Apple Silicon)
+SESTRIA 4.5 per macOS (Intel e Apple Silicon)
 
 Requisiti: macOS 11 o successivo su Intel, macOS 13 o successivo su Apple Silicon.
 

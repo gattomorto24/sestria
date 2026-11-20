@@ -25,7 +25,24 @@ func run() -> void:
 		guest.equipped=["reinforcements","reroll","impact"]
 	check(host.lan.private_address("192.168.1.1") and host.lan.private_address("10.0.2.2") and not host.lan.private_address("8.8.8.8"),"LAN limitata a indirizzi locali")
 	check(host.lan.host_room()==OK,"Creazione stanza TCP")
-	check(guest.lan.join_room("127.0.0.1",host.lan.room_code)==OK,"Connessione guest")
+	var announced := {"game":"sestria","version":host.lan.PROTOCOL,"name":"Prova","code":host.lan.room_code}
+	var room: Dictionary = host.lan.parse_room(announced,"192.168.1.20",0)
+	check(room.get("code")==host.lan.room_code and room.get("ip")=="192.168.1.20","La stanza annunciata porta il codice")
+	check(host.lan.parse_room({"game":"sestria","version":host.lan.PROTOCOL,"name":"Vecchia"},"192.168.1.21",0).get("code")=="","Una stanza di versione precedente non ha codice")
+	check(host.lan.parse_room({"game":"sestria","version":host.lan.PROTOCOL,"code":"12ab56"},"192.168.1.22",0).get("code")=="","Un codice non valido viene ignorato")
+	check(host.lan.parse_room({"game":"altro","version":host.lan.PROTOCOL},"192.168.1.23",0).is_empty(),"Annunci di altri giochi ignorati")
+	# Un annuncio reale via UDP viene letto dal listener e mostra il codice della stanza.
+	var sender := PacketPeerUDP.new()
+	sender.set_dest_address("127.0.0.1",host.lan.DISCOVERY_PORT)
+	sender.put_packet(host.lan.announcement())
+	var heard := Time.get_ticks_msec()+2000
+	while Time.get_ticks_msec()<heard and not host.lan.rooms.has("127.0.0.1"):
+		await process_frame
+		OS.delay_msec(5)
+	sender.close()
+	check(host.lan.rooms.has("127.0.0.1") and host.lan.rooms["127.0.0.1"].code==host.lan.room_code,"Annuncio UDP ricevuto con il codice")
+	# Entrare da «stanze vicine» usa il codice annunciato, senza digitarlo.
+	check(guest.lan.join_room("127.0.0.1",str(room.code))==OK,"Connessione guest con il codice annunciato")
 	var deadline := Time.get_ticks_msec()+5000
 	while not (host.lan.active and guest.lan.active) and Time.get_ticks_msec()<deadline:
 		await process_frame

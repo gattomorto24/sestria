@@ -219,6 +219,19 @@ func _process(delta: float) -> void:
 		elif role=="guest" and not replaying and started and not get_tree().paused:
 			interpolate_client(delta)
 
+# A room announced on the local network can be joined with one tap: the host advertises its code.
+# Rooms from older versions have no code and still need it typed in.
+static func parse_room(item: Variant, ip: String, now: int) -> Dictionary:
+	if not item is Dictionary or item.get("game","")!="sestria" or int(item.get("version",0))!=PROTOCOL:
+		return {}
+	var code := str(item.get("code",""))
+	if code.length()!=6 or not code.is_valid_int():
+		code=""
+	return {"ip":ip,"name":str(item.get("name","Stanza Sestria")).left(32),"code":code,"seen":now}
+
+func announcement() -> PackedByteArray:
+	return JSON.stringify({"game":"sestria","version":PROTOCOL,"name":game.player_name(),"code":room_code}).to_utf8_buffer()
+
 func poll_discovery(now: int) -> void:
 	if not discovery_enabled or not discovery.is_bound():
 		return
@@ -228,17 +241,23 @@ func poll_discovery(now: int) -> void:
 		if bytes.size()>1024 or not private_address(ip):
 			continue
 		var item=JSON.parse_string(bytes.get_string_from_utf8())
-		if item is Dictionary and item.get("game","")=="sestria" and int(item.get("version",0))==PROTOCOL:
-			rooms[ip]={"ip":ip,"name":str(item.get("name","Stanza Sestria")).left(32),"seen":now}
+		var room := parse_room(item,ip,now)
+		if not room.is_empty():
+			var known: Dictionary = rooms.get(ip,{})
+			rooms[ip]=room
+			if role=="" and (known.is_empty() or known.code!=room.code):
+				notify_changed.call_deferred()
 	for ip in rooms.keys():
 		if now-int(rooms[ip].seen)>6000:
 			rooms.erase(ip)
+			if role=="":
+				notify_changed.call_deferred()
 	if role=="host" and not active:
 		broadcast_clock+=get_process_delta_time()
 		if broadcast_clock>1:
 			broadcast_clock=0
 			discovery.set_dest_address("255.255.255.255",DISCOVERY_PORT)
-			discovery.put_packet(JSON.stringify({"game":"sestria","version":PROTOCOL,"name":game.player_name()}).to_utf8_buffer())
+			discovery.put_packet(announcement())
 
 func valid_loadout(value: Variant) -> bool:
 	return value is Array and value.size()==3 and value.all(func(id):return id is String and Rules.FAVOR.has(id)) and value[0]!=value[1] and value[1]!=value[2] and value[0]!=value[2]

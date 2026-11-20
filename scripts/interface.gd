@@ -1039,7 +1039,7 @@ func show_lan() -> void:
 	elif session.role == "guest":
 		paragraph(body,session.status,580).add_theme_color_override("font_color",IVORY)
 	else:
-		paragraph(body,"Due dispositivi sulla stessa rete. Il primo crea la stanza, il secondo usa l’IP e il codice mostrati.",580)
+		paragraph(body,"Due dispositivi sulla stessa rete. Il primo crea la stanza; il secondo la trova tra le stanze vicine e tocca Entra, senza codice. Per una connessione manuale usa IP e codice.",580)
 		button(body,"CREA STANZA",session.host_room,0,true)
 		var address_input := LineEdit.new()
 		address_input.placeholder_text = "IP del creatore · es. 192.168.1.20"
@@ -1055,7 +1055,10 @@ func show_lan() -> void:
 			label(body,"STANZE VICINE",15,GOLD,true)
 			for ip in session.rooms:
 				var entry: Dictionary = session.rooms[ip]
-				button(body,entry.name+" · "+ip,func():address_input.text = ip)
+				if str(entry.code) != "":
+					button(body,"ENTRA · "+entry.name+" · "+ip,func():session.join_room(ip,str(entry.code)),0,true)
+				else:
+					button(body,entry.name+" · "+ip+" · serve il codice",func():address_input.text = ip)
 		button(body,"Aggiorna stanze vicine",show_lan)
 	paragraph(body,"Se non vi vedete: controllate la rete, disattivate l’isolamento client del router oppure usate un hotspot. Non serve aprire porte su Internet.",580)
 	button(body,"Chiudi stanza" if session.role != "" else "Indietro",close_dialog)

@@ -12,7 +12,7 @@
 - Porta tre tattiche al tavolo e scegli quando spendere i gettoni.
 - Vinci nella saga offline per ottenere XP, livelli e due punti Pass per avanzamento.
 - Spendi i punti in cinque potenziamenti a gradi, con riassegnazione gratuita.
-- Sfida un amico sulla stessa rete Wi-Fi o hotspot, senza server di gioco o account obbligatorio.
+- Sfida un amico sulla stessa rete Wi-Fi o hotspot: le stanze vicine compaiono da sole e basta toccare Entra, senza codice. Nessun server di gioco o account obbligatorio.
 - Collega facoltativamente un profilo Google; i progressi restano sul dispositivo.
 
 Su computer il tavolo resta in orizzontale: clic sinistro per selezionare, clic destro per ispezionare le sei facce, Spazio o Invio per avanzare, Esc per il menu. Statistiche, Pass e LAN sono nel menu principale; gli aggiornamenti in **Impostazioni → Info**. I pacchetti Mac e Windows non sono notarizzati né firmati con un certificato commerciale: il sistema operativo può mostrare un avviso al primo avvio. L’app verifica la SHA-256 del nuovo pacchetto e lo salva in Download, ma non sostituisce mai se stessa.

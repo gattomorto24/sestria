@@ -1,9 +1,9 @@
 #!/bin/bash
 # Esporta Sestria per macOS (universale, firma ad hoc) e Windows x64 e prepara gli archivi della release.
-# Uso: tools/export_desktop.sh 4.4   (le versioni in project.godot ed export_presets.cfg devono già coincidere)
+# Uso: tools/export_desktop.sh 4.5   (le versioni in project.godot ed export_presets.cfg devono già coincidere)
 set -euo pipefail
 cd "$(dirname "$0")/.."
-version="${1:?Indica la versione, ad esempio 4.4}"
+version="${1:?Indica la versione, ad esempio 4.5}"
 godot_bin="${SESTRIA_GODOT:-${SESTRIA_ANDROID_TOOLS:-/tmp/sestria-android-tools}/godot}"
 release="build/release"
 mkdir -p build/desktop/windows "$release"

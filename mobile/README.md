@@ -1,6 +1,6 @@
 # Sestria · Android
 
-Edizione verticale 4.4, per Android 7.0 o successivo, ARM64 e ARMv7. L’APK release mantiene la firma e l’identificativo tecnico delle installazioni precedenti, così può aggiornarle senza cancellare profilo, statistiche o progressi.
+Edizione verticale 4.5, per Android 7.0 o successivo, ARM64 e ARMv7. L’APK release mantiene la firma e l’identificativo tecnico delle installazioni precedenti, così può aggiornarle senza cancellare profilo, statistiche o progressi.
 
 ## Comandi
 
@@ -24,12 +24,12 @@ Puoi riassegnare gratis tutti i punti. I bonus vengono fissati all’avvio della
 
 1. Collega entrambi i telefoni allo stesso Wi-Fi o hotspot.
 2. Il primo crea la stanza e comunica IP e codice di sei cifre.
-3. Il secondo seleziona la stanza vicina oppure inserisce IP e codice.
+3. Il secondo tocca **Entra** sulla stanza vicina: il codice è annunciato dalla stanza e non va digitato. Per una connessione manuale (o con una versione precedente) inserisce IP e codice.
 4. Il creatore avvia la partita. Le tattiche scelte vengono rivelate quando entrambi hanno confermato.
 
 Usa TCP 32640 e UDP 32641. Il creatore valida le mosse e simula i dadi; l’altro riceve aggiornamenti a 10 Hz. Nessun relay, cloud di gioco, port forwarding o account obbligatorio. La rete deve consentire il traffico tra dispositivi. Una disconnessione interrompe la partita senza inventare un vincitore.
 
-Il protocollo LAN 43 è condiviso da Android 4.3 e 4.4 e dalle edizioni Mac e Windows 4.4: i dispositivi con la stessa versione di protocollo possono sfidarsi. La ricerca UDP resta attiva solo nella stanza, il motore gestisce il blocco multicast senza un secondo proprietario nativo, gli aggiornamenti del menu sono rinviati fuori dai callback di rete e gli stati incompleti vengono rifiutati prima del rendering. La porta TCP rimane utilizzabile anche quando la ricerca automatica non è disponibile.
+Il protocollo LAN 43 è condiviso da Android 4.3, 4.4 e 4.5 e dalle edizioni Mac e Windows: i dispositivi con la stessa versione di protocollo possono sfidarsi. La ricerca UDP resta attiva solo nella stanza, il motore gestisce il blocco multicast senza un secondo proprietario nativo, gli aggiornamenti del menu sono rinviati fuori dai callback di rete e gli stati incompleti vengono rifiutati prima del rendering. La porta TCP rimane utilizzabile anche quando la ricerca automatica non è disponibile.
 
 In **Opzioni → Diagnostica locale** puoi copiare modello, versione Android, ultima fase LAN ed eventuali motivi di uscita registrati dal sistema. Il rapporto resta sul dispositivo; non viene inviato automaticamente. La causa precisa delle chiusure segnalate su telefoni fisici richiede il relativo log: i test su computer o emulatore non lo sostituiscono.
 

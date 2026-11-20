@@ -7,7 +7,7 @@ const DieScript = preload("res://scripts/die.gd")
 const UI = preload("res://scripts/interface.gd")
 const CombatFX = preload("res://scripts/combat_fx.gd")
 const MENU_CAMERA := Vector3(4.23,3.65,4.77)
-const GAME_CAMERA := Vector3(0,8.16,4.73)
+const GAME_CAMERA := Vector3(0,11.0,.5)
 const MATCH_TARGET := Vector3(0,0,.02)
 const AI_SETS = [["impact","renew","breach"],["impact","reroll","renew"],["impact","attrition","resonance"]]
 
