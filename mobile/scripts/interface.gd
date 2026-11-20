@@ -984,7 +984,7 @@ func apply_updates_refresh() -> void:
 func show_diagnostics() -> void:
 	var body := sheet("Diagnostica locale")
 	var report: String = "SESTRIA · versione "+game.updater.current_version+"\n"
-	if game.lan.android_bridge and game.lan.android_bridge.has_method("getDiagnosticReport"):
+	if game.lan.android_bridge:
 		report+=game.lan.android_bridge.getDiagnosticReport()
 	else:
 		report+="Sistema: "+OS.get_name()+"\nLAN: "+game.lan.role+" · fase "+game.phase

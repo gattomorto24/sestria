@@ -658,7 +658,7 @@ func emit_changed() -> void:
 	changed.emit()
 
 func trace_stage(stage: String) -> void:
-	if android_bridge and android_bridge.has_method("recordStage"):
+	if android_bridge:
 		android_bridge.recordStage(stage)
 
 func _exit_tree() -> void:

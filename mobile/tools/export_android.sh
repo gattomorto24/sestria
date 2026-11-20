@@ -24,6 +24,10 @@ export GODOT_ANDROID_KEYSTORE_RELEASE_USER=orlog
 GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD="$(cat "$signing_dir/password.txt")"
 export GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD
 "$godot_bin" --headless --log-file "$project_dir/build/android/export.log" --path "$project_dir" --export-release "Android Mobile Saga"
-"$toolchain/sdk/build-tools/35.0.1/apksigner" verify --verbose build/android/Sestria-v4.3-Android.apk
-"$toolchain/sdk/build-tools/35.0.1/zipalign" -c -P 16 4 build/android/Sestria-v4.3-Android.apk
-shasum -a 256 build/android/Sestria-v4.3-Android.apk > build/android/SHA256SUMS.txt
+apk_path="$(python3 -c 'import configparser; p=configparser.ConfigParser(); p.read("export_presets.cfg"); print(p["preset.0"]["export_path"].strip(chr(34)))')"
+"$toolchain/sdk/build-tools/35.0.1/apksigner" verify --verbose "$apk_path"
+"$toolchain/sdk/build-tools/35.0.1/zipalign" -c -P 16 4 "$apk_path"
+(
+  cd "$(dirname "$apk_path")"
+  shasum -a 256 "$(basename "$apk_path")" > SHA256SUMS.txt
+)

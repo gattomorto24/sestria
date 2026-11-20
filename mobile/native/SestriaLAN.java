@@ -61,7 +61,7 @@ public final class SestriaLAN extends GodotPlugin {
                         .append(exit.getStatus()).append(" · ").append(exit.getDescription());
             }
         } catch(Exception error) { out.append("\nDettaglio non disponibile: ").append(error.getClass().getSimpleName()); }
-        return out.toString();
+        return out.toString().replace(application.getPackageName(),"Sestria");
     }
     private static synchronized void installCrashHandler(Context context) {
         if(handlerInstalled) return;
