@@ -24,6 +24,10 @@ window/handheld/orientation=1
 window/handheld/extend_to_title=true
 window/vsync/vsync_mode=1
 
+[gui]
+
+common/default_scroll_deadzone=18
+
 [input_devices]
 pointing/emulate_mouse_from_touch=true
 

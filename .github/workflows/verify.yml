@@ -28,3 +28,14 @@ jobs:
           Godot_v4.7.1-stable_linux.x86_64 --headless --script res://tests/updater_test.gd
           Godot_v4.7.1-stable_linux.x86_64 --headless --script res://tests/lan_lifecycle_test.gd
           Godot_v4.7.1-stable_linux.x86_64 --headless --fixed-fps 120 --script res://tests/lan_test.gd -- --lan-favors
+          Godot_v4.7.1-stable_linux.x86_64 --headless --fixed-fps 60 --script res://tests/scroll_test.gd
+      - name: Importa e verifica l’edizione desktop
+        run: |
+          mkdir -p build/android
+          Godot_v4.7.1-stable_linux.x86_64 --headless --editor --import --quit
+          Godot_v4.7.1-stable_linux.x86_64 --headless --script res://tests/rules_test.gd
+          Godot_v4.7.1-stable_linux.x86_64 --headless --script res://tests/stats_test.gd
+          Godot_v4.7.1-stable_linux.x86_64 --headless --script res://tests/progression_test.gd
+          Godot_v4.7.1-stable_linux.x86_64 --headless --script res://tests/desktop_updater_test.gd
+          Godot_v4.7.1-stable_linux.x86_64 --headless --fixed-fps 120 --script res://tests/lan_test.gd -- --lan-favors
+          Godot_v4.7.1-stable_linux.x86_64 --headless --fixed-fps 120 -- --sestria-test --difficulty-1

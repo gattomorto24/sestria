@@ -69,12 +69,12 @@ func _initialize() -> void:
 	r.gold = [3,0]
 	r.board = [[tagged_hand],[tagged_arrow]]
 	r.resolve([{"id":"impact","level":0},{}])
-	check(r.gold[0] == 1 and r.hp[1] == 13,"Thor può spendere i gettoni ottenuti in manche")
+	check(r.gold[0] == 1 and r.hp[1] == 13,"Impatto può spendere i gettoni ottenuti in manche")
 	r.reset(0)
 	r.gold = [4,0]
 	r.board = [[plain_axe],[tagged_hand]]
 	r.resolve([{"id":"impact","level":0},{}])
-	check(r.hp[1]==14 and r.events[-1].kind=="fail","Furto prima di Thor")
+	check(r.hp[1]==14 and r.events[-1].kind=="fail","Furto prima di Impatto")
 	r.reset(0)
 	r.gold = [0,6]
 	r.board = [[tagged_arrow,tagged_hand],[]]

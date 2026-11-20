@@ -13,6 +13,7 @@ config_version=5
 config/name="Sestria"
 run/main_scene="res://scenes/table.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
+config/version="4.4"
 config/icon="res://assets/icons/app_icon.svg"
 config/quit_on_go_back=false
 

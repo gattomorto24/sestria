@@ -1,0 +1,14 @@
+SESTRIA 4.4 per macOS (Intel e Apple Silicon)
+
+Requisiti: macOS 11 o successivo su Intel, macOS 13 o successivo su Apple Silicon.
+
+Installazione
+1. Trascina Sestria.app nella cartella Applicazioni.
+2. Al primo avvio fai clic destro su Sestria.app e scegli Apri, poi conferma.
+
+Questa app ha una firma ad hoc e non è notarizzata da Apple: macOS può quindi mostrare un avviso
+di sviluppatore non identificato. Se il sistema blocca l’app, apri Terminale ed esegui:
+  xattr -dr com.apple.quarantine /Applications/Sestria.app
+
+Controlli: clic sinistro seleziona, clic destro ispeziona un dado, Spazio o Invio avanza, Esc apre il menu.
+Gli aggiornamenti sono in Impostazioni > Info. Verifica sempre la SHA-256 con SHA256SUMS.txt.

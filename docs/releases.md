@@ -2,11 +2,12 @@
 
 Il repository ufficiale è [gattomorto24/sestria](https://github.com/gattomorto24/sestria).
 
-1. Aumenta **version/code** e **version/name** nel preset release `mobile/export_presets.cfg`. Aggiorna anche la versione di fallback in `mobile/scripts/updater.gd` e `mobile/native/SestriaUpdates.java`.
+1. Aumenta **version/code** e **version/name** nel preset release `mobile/export_presets.cfg`. Aggiorna anche la versione di fallback in `mobile/scripts/updater.gd` e `mobile/native/SestriaUpdates.java`. Per i computer aggiorna `config/version` in `project.godot`, le versioni dei preset macOS e Windows in `export_presets.cfg` e `FALLBACK_VERSION` in `scripts/desktop_updater.gd`.
 2. Compila e verifica l’APK con la stessa chiave release. Il nome deve essere `Sestria-vVERSIONE-Android.apk`, ad esempio `Sestria-v4.4-Android.apk`.
-3. Salva i sorgenti nel repository e crea una release GitHub con tag `vVERSIONE`, ad esempio `v4.4`. Non usare una prerelease per l’aggiornamento stabile.
-4. Allega l’APK e le note della versione e pubblica la release. GitHub calcola il digest SHA-256 dell’asset; l’app lo legge dall’API delle release.
-5. Dalla versione precedente apri **Opzioni → Aggiornamenti → Verifica nuovi aggiornamenti**. Verifica download, firma e richiesta di installazione.
+3. Esporta Mac (`Sestria-vVERSIONE-macOS-universal.zip`, app universale con firma ad hoc) e Windows (`Sestria-vVERSIONE-Windows-x64.zip`). Genera `SHA256SUMS.txt` con i tre pacchetti.
+4. Salva i sorgenti nel repository e crea una release GitHub con tag `vVERSIONE`, ad esempio `v4.4`. Non usare una prerelease per l’aggiornamento stabile.
+5. Allega i tre pacchetti, `SHA256SUMS.txt` e le note della versione e pubblica la release. GitHub calcola il digest SHA-256 di ogni asset; le app lo leggono dall’API delle release. Android sceglie l’APK, Mac e Windows il proprio archivio.
+6. Dalla versione precedente apri **Opzioni → Aggiornamenti → Verifica nuovi aggiornamenti**. Verifica download, firma e richiesta di installazione.
 
 Non servono server, manifest ospitati altrove, token dentro l’app o cambiamenti al codice per ogni release. La relazione fra nome della versione e versionCode deve restare crescente. Un APK firmato con un’altra chiave, di un’altra app, incompleto o precedente viene rifiutato.
 

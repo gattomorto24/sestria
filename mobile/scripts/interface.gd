@@ -49,6 +49,7 @@ var updates_meter: ProgressBar
 var updates_refresh_pending := false
 var lan_note := ""
 var pass_note := ""
+var scroll_guard := 0
 
 func setup(owner_game: Node3D) -> void:
 	game = owner_game
@@ -132,6 +133,9 @@ func button(parent: Node, text_value: String, callback: Callable, primary := fal
 		node.add_theme_color_override("font_color",IVORY)
 		node.add_theme_color_override("font_hover_color",IVORY)
 	node.pressed.connect(func():
+		# A tap that stops a fling, or the end of a drag, must never activate what lies underneath.
+		if Time.get_ticks_msec() < scroll_guard:
+			return
 		game.haptic()
 		callback.call())
 	parent.add_child(node)
@@ -402,9 +406,15 @@ func combat_detail(title: String, amount: int, damage: bool) -> void:
 	feedback.text = "%s  ·  %d %s" % [title,amount,"pietre" if damage else "parate"]
 
 func sheet(title: String, context := false) -> VBoxContainer:
+	# Rebuilding the same sheet (a toggle, a selection, a refresh) keeps the reader where they were.
+	var restore := -1
+	var current: Control = context_popup if context else dialog
+	if is_instance_valid(current) and current.get_meta("sheet_title","") == title and current.has_node("Card/Scroll"):
+		restore = int(current.get_node("Card/Scroll").scroll_vertical)
 	close_dialog(true)
 	close_context()
 	var root := Control.new()
+	root.set_meta("sheet_title",title)
 	add_child(root)
 	root.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 	var shade := ColorRect.new()
@@ -418,11 +428,15 @@ func sheet(title: String, context := false) -> VBoxContainer:
 	var scroll := ScrollContainer.new()
 	scroll.name = "Scroll"
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll_guard = 0
+	scroll.scroll_started.connect(func():scroll_guard = 1 << 60)
+	scroll.scroll_ended.connect(func():scroll_guard = Time.get_ticks_msec()+260)
 	card.add_child(scroll)
 	var body := vbox(scroll,20)
 	body.name = "Body"
 	body.size_flags_horizontal = SIZE_EXPAND_FILL
 	var handle := HSeparator.new()
+	handle.mouse_filter = MOUSE_FILTER_IGNORE
 	body.add_child(handle)
 	var heading := label(body,title,37,IVORY,true)
 	heading.clip_text = true
@@ -431,7 +445,22 @@ func sheet(title: String, context := false) -> VBoxContainer:
 	else:
 		dialog = root
 	fit_sheet.call_deferred(root)
+	if restore > 0:
+		restore_pass_scroll.call_deferred(root,restore)
 	return body
+
+func scrollable(node: Node) -> void:
+	# Godot sends a touch to the control under the finger and stops at the first MOUSE_FILTER_STOP.
+	# Cards and buttons must let the press reach the ScrollContainer; the scroll deadzone then separates
+	# a tap (button fires) from a drag (NOTIFICATION_SCROLL_BEGIN cancels the press).
+	# Sliders, text fields and the 3D inspector keep their own drag handling.
+	for child in node.get_children():
+		if child is Control:
+			var item: Control = child
+			var interactive: bool = item is SubViewportContainer or item is LineEdit or item is Slider or item is SpinBox
+			if not interactive and item.mouse_filter == MOUSE_FILTER_STOP:
+				item.mouse_filter = MOUSE_FILTER_PASS
+		scrollable(child)
 
 func fit_sheet(root: Control) -> void:
 	if not is_instance_valid(root):
@@ -439,6 +468,7 @@ func fit_sheet(root: Control) -> void:
 	var card: PanelContainer = root.get_node("Card")
 	var scroll: ScrollContainer = card.get_node("Scroll")
 	var body: VBoxContainer = scroll.get_node("Body")
+	scrollable(body)
 	var width := size.x-margins.x-margins.z
 	body.custom_minimum_size.x = width-48
 	card.size.x = width
@@ -452,6 +482,7 @@ func fit_sheet(root: Control) -> void:
 	card.size = Vector2(width,height+48)
 
 func close_dialog(keep_pause := false) -> void:
+	scroll_guard = 0
 	if lan_panel and not keep_pause and game.lan and not game.lan.started:
 		game.lan.close()
 	lan_panel=false
@@ -467,6 +498,7 @@ func close_dialog(keep_pause := false) -> void:
 		get_tree().paused = false
 
 func close_context() -> void:
+	scroll_guard = 0
 	inspector_viewport = null
 	if is_instance_valid(context_popup):
 		remove_child(context_popup)
@@ -784,10 +816,16 @@ func show_pass(scroll_y := 0) -> void:
 	restore_pass_scroll.call_deferred(dialog,scroll_y)
 
 func restore_pass_scroll(root: Control, position_y: int) -> void:
-	await get_tree().process_frame
-	await get_tree().process_frame
-	if is_instance_valid(root):
-		root.get_node("Card/Scroll").scroll_vertical = position_y
+	# The sheet is laid out over a couple of frames; wait until its range can hold the saved position.
+	for attempt in 12:
+		await get_tree().process_frame
+		if not is_instance_valid(root) or not root.has_node("Card/Scroll"):
+			return
+		var scroll: ScrollContainer = root.get_node("Card/Scroll")
+		var bar := scroll.get_v_scroll_bar()
+		if bar.max_value-bar.page >= position_y or attempt == 11:
+			scroll.scroll_vertical = position_y
+			return
 
 func buy_upgrade(id: String) -> void:
 	if game.phase not in ["menu","end"]:

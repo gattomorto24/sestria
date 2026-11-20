@@ -1,8 +1,10 @@
 # Sestria · Android
 
-Edizione verticale 4.3, per Android 7.0 o successivo, ARM64 e ARMv7. L’APK release mantiene la firma e l’identificativo tecnico delle installazioni precedenti, così può aggiornarle senza cancellare profilo, statistiche o progressi.
+Edizione verticale 4.4, per Android 7.0 o successivo, ARM64 e ARMv7. L’APK release mantiene la firma e l’identificativo tecnico delle installazioni precedenti, così può aggiornarle senza cancellare profilo, statistiche o progressi.
 
 ## Comandi
+
+Le finestre scorrono trascinando da qualsiasi punto, anche da schede e pulsanti; un tocco breve attiva il pulsante, un trascinamento no, e toccare per fermare una spinta non attiva nulla. I cursori e l’ispettore 3D mantengono il proprio trascinamento.
 
 Tocca direttamente i dadi 3D per tenerli; tieni premuto per ispezionarli e ruotarli. Le tattiche compaiono nella barra inferiore e sono consultabili anche sui tasselli del tavolo. Il mirino cambia inquadratura. La pausa sospende la simulazione; il tasto Indietro chiude le finestre. I margini rispettano i ritagli della fotocamera e la barra dei gesti.
 
@@ -27,7 +29,7 @@ Puoi riassegnare gratis tutti i punti. I bonus vengono fissati all’avvio della
 
 Usa TCP 32640 e UDP 32641. Il creatore valida le mosse e simula i dadi; l’altro riceve aggiornamenti a 10 Hz. Nessun relay, cloud di gioco, port forwarding o account obbligatorio. La rete deve consentire il traffico tra dispositivi. Una disconnessione interrompe la partita senza inventare un vincitore.
 
-La 4.3 usa un nuovo protocollo: entrambi i dispositivi devono avere questa versione. La ricerca UDP resta attiva solo nella stanza, il motore gestisce il blocco multicast senza un secondo proprietario nativo, gli aggiornamenti del menu sono rinviati fuori dai callback di rete e gli stati incompleti vengono rifiutati prima del rendering. La porta TCP rimane utilizzabile anche quando la ricerca automatica non è disponibile.
+Il protocollo LAN 43 è condiviso da Android 4.3 e 4.4 e dalle edizioni Mac e Windows 4.4: i dispositivi con la stessa versione di protocollo possono sfidarsi. La ricerca UDP resta attiva solo nella stanza, il motore gestisce il blocco multicast senza un secondo proprietario nativo, gli aggiornamenti del menu sono rinviati fuori dai callback di rete e gli stati incompleti vengono rifiutati prima del rendering. La porta TCP rimane utilizzabile anche quando la ricerca automatica non è disponibile.
 
 In **Opzioni → Diagnostica locale** puoi copiare modello, versione Android, ultima fase LAN ed eventuali motivi di uscita registrati dal sistema. Il rapporto resta sul dispositivo; non viene inviato automaticamente. La causa precisa delle chiusure segnalate su telefoni fisici richiede il relativo log: i test su computer o emulatore non lo sostituiscono.
 

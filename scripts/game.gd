@@ -59,6 +59,17 @@ var frame_checks := 0
 var integration_seed := 571
 var raycast_hits := 0
 var portrait := false
+var stats_store: RefCounted
+var progression: RefCounted
+var saga_run := {}
+var saga_notice := ""
+var saga_difficulty := 1
+var updater: Node
+var account: Node
+var lan: Node
+var network_enemy_plan := {}
+var network_resolving := false
+var network_advancing := false
 
 func _ready() -> void:
 	var arguments := OS.get_cmdline_user_args()
@@ -99,11 +110,23 @@ func _ready() -> void:
 	ui = UI.new()
 	$Interface.add_child(ui)
 	ui.setup(self)
+	stats_store=preload("res://scripts/statistics.gd").new()
+	progression=preload("res://scripts/progression.gd").new()
+	lan=preload("res://scripts/lan_session.gd").new()
+	add_child(lan)
+	lan.setup(self)
+	lan.changed.connect(ui.refresh_lan)
+	lan.problem.connect(ui.lan_problem)
+	updater=preload("res://scripts/desktop_updater.gd").new()
+	add_child(updater)
+	updater.changed.connect(ui.refresh_updates)
 	ui.show_menu()
 	if integration:
 		call_deferred("run_integration")
 
 func _process(delta: float) -> void:
+	if stats_store and not integration:
+		stats_store.tick(delta)
 	var destination := camera_goal
 	if portrait:
 		destination = Vector3(0,10.9,6.32) if phase != "menu" else Vector3(4.23,7.0,9.3)
@@ -246,12 +269,28 @@ func rack(side: int, immediate := false) -> void:
 		cube.arrange(Vector3(x,.152,z),(cube.die_id+side)%6,0.0 if immediate else .34)
 
 func prepare() -> void:
+	if lan and lan.is_guest():
+		return
+	if lan and lan.active and not lan.started:
+		lan.start_match()
+		return
+	if not integration:
+		stats_store.start("lan" if lan and lan.started else "solo",difficulty)
 	generation += 1
-	opponent.level = difficulty
+	rules.reset(0)
+	progression.last_reward = {}
+	saga_run = progression.create_run(difficulty,not (lan and lan.started))
+	# Existing automated matches keep a reproducible, unmodified baseline.
+	if integration and not (lan and lan.started):
+		saga_run = {"enabled":false,"ai_level":difficulty,"trials_extra":0}
+	saga_notice = ""
+	saga_difficulty = int(saga_run.ai_level)
+	opponent.level = saga_difficulty
+	opponent.trials_extra = int(saga_run.trials_extra)
 	camera_goal = GAME_CAMERA
 	look_goal = MATCH_TARGET
 	phase = "coin"
-	table.set_figures([equipped, AI_SETS[difficulty]])
+	table.set_figures([equipped,lan.peer_loadout if lan and lan.started else AI_SETS[saga_difficulty]])
 	table.update_counters([15,15],[0,0],0)
 	for side in 2:
 		rack(side)
@@ -276,6 +315,10 @@ func toss(guess: int) -> void:
 		begin_round()
 
 func begin_round() -> void:
+	if lan and lan.started:
+		lan.trace_stage("round_%d_start" % rules.round_no)
+	var bonuses: Array = progression.round_bonuses(rules,saga_run)
+	saga_notice = " · ".join(bonuses)
 	table.lanes.hide()
 	attempts = [0,0]
 	pending = []
@@ -289,22 +332,35 @@ func begin_round() -> void:
 	offer_roll(rules.first)
 
 func offer_roll(side: int) -> void:
+	if lan and lan.active and side==1:
+		current=side
+		phase="remote_roll"
+		ui.set_stage(0)
+		ui.status("Il rivale deve lanciare")
+		return
 	current = side
 	ui.set_stage(0)
 	camera_goal = GAME_CAMERA
 	look_goal = MATCH_TARGET
 	if side == 0:
 		phase = "roll"
-		ui.action("Lancia i dadi", "Lancia", roll)
+		ui.action(saga_notice+"\nLancia i dadi" if not saga_notice.is_empty() and attempts[0]==0 else "Lancia i dadi", "Lancia", roll)
 	else:
 		phase = "ai"
-		ui.status("L’avversario prepara il lancio")
+		ui.status(saga_notice+"\nL’avversario prepara il lancio" if not saga_notice.is_empty() and attempts==[0,0] else "L’avversario prepara il lancio")
 		var ticket := generation
 		await pause(.44)
 		if ticket == generation and phase == "ai":
 			roll()
 
 func roll() -> void:
+	if lan and lan.is_guest():
+		if phase=="roll":
+			lan.command("roll")
+			phase="busy"
+			ui.status("Lancio dei dadi…")
+			if not integration:stats_store.rolled()
+		return
 	if phase not in ["roll","ai"]:
 		return
 	var ticket := generation
@@ -323,6 +379,7 @@ func roll() -> void:
 	for index in active.size():
 		active[index].launch(center,start_angle+TAU*index/active.size(),samples)
 	physics_rolls += 1
+	if side==0 and not integration:stats_store.rolled()
 	var elapsed := 0.0
 	var stable := 0
 	var next_nudge := 1.85
@@ -355,7 +412,10 @@ func roll() -> void:
 				fail("Discordanza tra faccia fisica e risultato")
 				return
 			frame_checks += 1
-	if side == 1 or attempts[side] == 3:
+	if lan and lan.active and side==1 and attempts[side]<3:
+		phase="remote_select"
+		ui.status("Il rivale sceglie i dadi")
+	elif side == 1 or attempts[side] == 3:
 		var keep := opponent.keep(rules,side,pending,attempts[side]==3)
 		commit(keep)
 	else:
@@ -372,9 +432,18 @@ func confirm_selection() -> void:
 	if phase != "select":
 		return
 	var kept := pending.filter(func(d):return cubes[0][d.id].selected)
+	if lan and lan.is_guest():
+		lan.command("keep",{"ids":kept.map(func(d):return d.id)})
+		if not integration:
+			stats_store.kept(kept.size())
+		phase="busy"
+		ui.status("Dadi confermati")
+		return
 	commit(kept.map(func(d):return d.id))
 
 func commit(keep: Array) -> void:
+	if current==0 and not integration:
+		stats_store.kept(keep.size())
 	var ticket := generation
 	phase = "busy"
 	var side := current
@@ -464,6 +533,10 @@ func confirm_targets() -> void:
 	resolve(preferred)
 
 func resolve(plan: Dictionary) -> void:
+	if lan and lan.active and not network_resolving:
+		if phase in ["favor","target"]:
+			lan.submit_favor(plan)
+		return
 	if phase not in ["favor","target"]:
 		return
 	combat_uses.clear()
@@ -471,8 +544,10 @@ func resolve(plan: Dictionary) -> void:
 	phase = "busy"
 	visual_hp = rules.hp.duplicate()
 	visual_gold = rules.gold.duplicate()
-	var enemy := opponent.favor(rules,1,AI_SETS[difficulty])
+	var enemy: Dictionary = network_enemy_plan if network_resolving else opponent.favor(rules,1,AI_SETS[saga_difficulty])
 	var events: Array = rules.resolve([plan,enemy])
+	if not integration:
+		stats_store.events(rules.round_no,events)
 	camera_goal = GAME_CAMERA*.95
 	look_goal = MATCH_TARGET
 	ui.set_stage(3)
@@ -509,15 +584,27 @@ func resolve(plan: Dictionary) -> void:
 	camera_goal = GAME_CAMERA
 	table.update_counters(rules.hp,rules.gold,rules.first)
 	if rules.winner >= 0:
+		network_resolving=false
+		if lan:
+			lan.replaying=false
+		record_match_result()
 		phase = "end"
 		camera_goal = GAME_CAMERA*.93
 		ui.finish(rules.winner==0)
 		sound("win" if rules.winner==0 else "lose")
 		return
+	network_resolving=false
+	if lan:
+		lan.replaying=false
 	phase = "between"
 	ui.action("Fine della manche", "Prossima manche", next_round)
 
 func next_round() -> void:
+	if lan and lan.active and not network_advancing:
+		if phase=="between":
+			lan.next_round()
+		return
+	network_advancing=false
 	if phase != "between":
 		return
 	rules.next_round()
@@ -679,7 +766,7 @@ func play_event(event: Dictionary) -> void:
 		"favor":
 			animation.play("attivateon")
 			var index := Rules.FAVOR.keys().find(event.extra.id)
-			var sets: Array = equipped if side == 0 else AI_SETS[difficulty]
+			var sets: Array = equipped if side == 0 else (lan.peer_loadout if lan and lan.active else AI_SETS[saga_difficulty])
 			var slot := sets.find(event.extra.id)
 			place = table.figures[side][slot].position
 			place.y += .16
@@ -776,6 +863,8 @@ func _unhandled_input(event: InputEvent) -> void:
 func go_back() -> void:
 	if is_instance_valid(ui.context_popup):
 		ui.close_context()
+	elif ui.pass_panel:
+		ui.close_pass()
 	elif is_instance_valid(ui.dialog):
 		if phase not in ["coin","end"]:
 			ui.close_dialog()
@@ -789,6 +878,12 @@ func _notification(what: int) -> void:
 		go_back()
 
 func menu() -> void:
+	if stats_store and not integration:stats_store.interrupt()
+	if lan and lan.role!="":lan.close()
+	network_resolving=false
+	network_advancing=false
+	saga_run.clear()
+	saga_notice=""
 	table.lanes.hide()
 	generation += 1
 	phase = "menu"
@@ -843,3 +938,41 @@ func run_integration() -> void:
 		[difficulty,rules.winner,rules.round_no,physics_rolls,physics_hits,frame_checks,raycast_hits,
 		sorted_rounds,strikes_animated,blocks_animated,dice_shattered])
 	get_tree().quit()
+
+func record_match_result() -> void:
+	if integration or stats_store.active.is_empty() or rules.winner < 0:
+		return
+	progression.complete_match(str(stats_store.active.id),str(stats_store.active.mode),rules.winner==0,saga_run)
+	stats_store.finish(rules.winner==0,rules.hp)
+
+
+func prepare_lan_guest() -> void:
+	saga_run = progression.create_run(difficulty,false)
+	saga_notice = ""
+	generation+=1
+	rules.reset(0)
+	phase="ai"
+	for side in 2:
+		rack(side,true)
+	table.set_figures([equipped,lan.peer_loadout])
+	table.update_counters([15,15],[0,0],0)
+	ui.match_layout()
+	ui.stats([15,15],[0,0],1,0)
+	ui.status("Il rivale sceglie la moneta")
+	if not integration:
+		stats_store.start("lan",difficulty)
+
+
+func rematch_lan() -> void:
+	if lan and lan.role=="host" and lan.active:
+		lan.started=false
+		lan.plans=[null,null]
+		lan.next_ready=[false,false]
+		lan.start_match()
+
+
+func player_name() -> String:
+	if account and not account.profile.is_empty():
+		return str(account.profile.get("name","Giocatore")).split(" ")[0].left(24)
+	return "Giocatore"
+

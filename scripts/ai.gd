@@ -3,6 +3,7 @@ extends RefCounted
 const Rules = preload("res://scripts/rules.gd")
 var rng := RandomNumberGenerator.new()
 var level := 1
+var trials_extra := 0
 
 func score(match_rules: RefCounted, side: int, mine: Array, enemy: Array) -> float:
 	var a := [0,0,0,0,0]
@@ -38,7 +39,7 @@ func keep(match_rules: RefCounted, side: int, landed: Array, last: bool) -> Arra
 		return landed.map(func(d): return d.id)
 	if level == 0:
 		return landed.filter(func(d): return rng.randf() < (.75 if d.gold else .43)).map(func(d): return d.id)
-	var trials := 8 if level == 1 else 24
+	var trials := (8 if level == 1 else 24) + clampi(trials_extra,0,8)
 	var best := -INF
 	var chosen: Array = []
 	var futures: Array = []

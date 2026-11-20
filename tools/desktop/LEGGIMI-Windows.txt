@@ -1,0 +1,14 @@
+SESTRIA 4.4 per Windows x64
+
+Requisiti: Windows 10 o successivo a 64 bit e una scheda grafica con driver Vulkan 1.0 o Direct3D 12.
+
+Installazione
+1. Estrai l’archivio in una cartella a tua scelta.
+2. Avvia Sestria.exe.
+
+Il programma non è firmato con un certificato commerciale: Windows SmartScreen può mostrare un avviso
+al primo avvio. Scegli Ulteriori informazioni > Esegui comunque solo se hai scaricato il pacchetto
+dalla pagina ufficiale delle release e la SHA-256 coincide con SHA256SUMS.txt.
+
+Controlli: clic sinistro seleziona, clic destro ispeziona un dado, Spazio o Invio avanza, Esc apre il menu.
+Gli aggiornamenti sono in Impostazioni > Info: l’app scarica il nuovo pacchetto in Download e ne verifica la SHA-256.

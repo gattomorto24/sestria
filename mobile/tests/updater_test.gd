@@ -25,6 +25,7 @@ func run() -> void:
 	check(Updates.parse_release(valid,"4.4").is_empty(),"Nessun download ripetuto della versione corrente")
 	var update := Updates.new()
 	root.add_child(update)
+	update.current_version="4.3"
 	update.state="checking"
 	update.completed(HTTPRequest.RESULT_SUCCESS,404,PackedStringArray(),PackedByteArray())
 	check(update.state=="current","Repository senza release gestito")
