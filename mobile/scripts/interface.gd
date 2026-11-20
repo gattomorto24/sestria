@@ -476,6 +476,16 @@ func fit_sheet(root: Control) -> void:
 	await get_tree().process_frame
 	if not is_instance_valid(root):
 		return
+	# The wrapped line count is only exact once the label has its final width: never let a paragraph be clipped.
+	for item in body.find_children("*","Label",true,false):
+		var paragraph: Label = item
+		if paragraph.autowrap_mode != TextServer.AUTOWRAP_OFF and paragraph.get_line_count() > 0:
+			var needed := paragraph.get_line_count()*(paragraph.get_line_height()+paragraph.get_theme_constant("line_spacing"))+8
+			if needed > paragraph.custom_minimum_size.y:
+				paragraph.custom_minimum_size.y = needed
+	await get_tree().process_frame
+	if not is_instance_valid(root):
+		return
 	var height := minf(body.get_combined_minimum_size().y,size.y-margins.y-margins.w-100)
 	scroll.custom_minimum_size = Vector2(width-48,height)
 	card.position = Vector2(margins.x,size.y-margins.w-height-48)
