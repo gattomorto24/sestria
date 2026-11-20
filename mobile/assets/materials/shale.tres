@@ -1,0 +1,14 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://assets/materials/surface.gdshader" id="1_frs26"]
+
+[resource]
+resource_name = "shale"
+render_priority = 0
+shader = ExtResource("1_frs26")
+shader_parameter/low = Color(0.2, 0.23137255, 0.1764706, 1)
+shader_parameter/high = Color(0.54509807, 0.53333336, 0.3882353, 1)
+shader_parameter/material_kind = 2
+shader_parameter/scale_factor = 3.0
+shader_parameter/metal = 0.0
+shader_parameter/rough = 0.57

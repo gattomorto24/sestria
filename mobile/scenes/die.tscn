@@ -1,0 +1,38 @@
+[gd_scene load_steps=7 format=3]
+[ext_resource type="Script" path="res://scripts/die.gd" id="1"]
+
+[ext_resource type="ArrayMesh" path="res://assets/models/die.res" id="2"]
+[ext_resource type="ShaderMaterial" path="res://assets/materials/bone.tres" id="3"]
+
+[sub_resource type="PhysicsMaterial" id="Mat"]
+friction = 0.57
+bounce = 0.32
+
+[sub_resource type="BoxShape3D" id="Shape"]
+size = Vector3(0.46,0.46,0.46)
+
+[sub_resource type="StandardMaterial3D" id="BoneMobile"]
+albedo_color = Color(0.94,0.84,0.65,1)
+roughness = 0.68
+
+[node name="Die" type="RigidBody3D"]
+collision_layer = 2
+collision_mask = 3
+mass = 0.11
+physics_material_override = SubResource("Mat")
+continuous_cd = true
+physics_interpolation_mode = 1
+contact_monitor = true
+max_contacts_reported = 12
+linear_damp = 0.76
+angular_damp = 1.24
+freeze = true
+script = ExtResource("1")
+
+[node name="Hull" type="CollisionShape3D" parent="."]
+shape = SubResource("Shape")
+
+[node name="Bone" type="MeshInstance3D" parent="."]
+mesh = ExtResource("2")
+scale = Vector3(1.55,1.55,1.55)
+material_override = ExtResource("3")

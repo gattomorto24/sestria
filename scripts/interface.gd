@@ -1,0 +1,821 @@
+extends Control
+
+const Rules = preload("res://scripts/rules.gd")
+const TITLES := ["Facile","Normale","Difficile"]
+const IVORY := Color("#f1e0c4")
+const MUTED := Color("#c4beb0")
+const GOLD := Color("#d9ae70")
+const TURQUOISE := Color("#7febdf")
+const PRIMARY = preload("res://assets/ui/primary.png")
+const HOVER = preload("res://assets/ui/hover.png")
+const SECONDARY = preload("res://assets/ui/secondary.png")
+const SELECTED = preload("res://assets/ui/selected.png")
+const DISABLED = preload("res://assets/ui/disabled.png")
+const FRAME = preload("res://assets/ui/panel.png")
+const DIVIDER = preload("res://assets/ui/divider.png")
+const BANNER = preload("res://assets/ui/brand_banner.svg")
+const HEART = preload("res://assets/ui/stone_icon.png")
+const TOKEN = preload("res://assets/ui/favor_icon.png")
+const GEM = preload("res://assets/ui/gem.png")
+const TAB = preload("res://assets/ui/tab.png")
+const TAB_ACTIVE = preload("res://assets/ui/tab_active.png")
+const SLIDER = preload("res://assets/ui/slider_bg.png")
+const SLIDER_FILL = preload("res://assets/ui/slider_fill.png")
+const RULES_TEXT := "Ogni giocatore dispone di sei dadi e quindici pietre. La moneta decide l’iniziativa, poi l’ordine si inverte a ogni manche. Si alternano fino a tre lanci. Dopo il terzo lancio tutti i dadi rimasti entrano in gioco.\n\nAscia ed elmo si contrastano. Freccia e scudo si contrastano. Un attacco senza difesa toglie una pietra. Il bordo dorato genera un gettone. La mano sottrae un gettone al rivale per ultima, anche tra quelli appena guadagnati. Le mani contrapposte si annullano a coppie.\n\nLe tattiche agiscono per priorità. I primi precedono i dadi e richiedono gettoni già in riserva. Gli ultimi possono spendere quelli appena guadagnati. Chi perde l’ultima pietra perde la partita.\n\nClic su un dado per tenerlo. Clic destro per ispezionarlo. Clic sui totem per consultare o attivare una tattica."
+var game: Node3D
+var screen: Control
+var dialog: Control
+var context_popup: Control
+var prompt: PanelContainer
+var prompt_layout: VBoxContainer
+var health_count: Array[Label] = []
+var token_count: Array[Label] = []
+var health_segments: Array = [[],[]]
+var stage_tabs: Array[Label] = []
+var stage_styles: Array[StyleBoxTexture] = []
+var combat_result: Label
+var message_panel: PanelContainer
+var phase_label: Label
+var feedback: Label
+var main_title: SystemFont
+var body_text: SystemFont
+var portrait := false
+var inspect_mode := false
+var touch_row: HBoxContainer
+var touch_buttons: Array[Button] = []
+var touch_signature := ""
+var paused_for_menu := false
+var target_tray: PanelContainer
+var target_signature := ""
+var touch_tray: PanelContainer
+
+func setup(owner_game: Node3D) -> void:
+	game = owner_game
+	portrait = game.portrait
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+	mouse_filter = MOUSE_FILTER_IGNORE
+	main_title = SystemFont.new()
+	main_title.font_names = PackedStringArray(["Cinzel","Georgia","Baskerville","Times New Roman"])
+	body_text = SystemFont.new()
+	body_text.font_names = PackedStringArray(["Georgia","Baskerville","Times New Roman"])
+	var palette := Theme.new()
+	palette.default_font = body_text
+	palette.default_font_size = 28 if portrait else 17
+	palette.set_color("font_color","Label",IVORY)
+	palette.set_font("font","Button",main_title)
+	palette.set_font_size("font_size","Button",28 if portrait else 17)
+	var button_art := {"normal":SECONDARY,"hover":HOVER,"pressed":SELECTED,"focus":HOVER,"disabled":DISABLED}
+	for state in button_art:
+		palette.set_stylebox(state,"Button",button_skin(button_art[state]))
+		palette.set_color("font_color","Button",IVORY)
+		palette.set_color("font_hover_color","Button",Color("#fff3e1"))
+		palette.set_color("font_pressed_color","Button",Color("#ffe4b9"))
+		palette.set_color("font_disabled_color","Button",Color("#938e87"))
+	for state in ["normal","hover","pressed","disabled","focus"]:
+		palette.set_stylebox(state,"OptionButton",button_skin(button_art[state]))
+	palette.set_color("font_color","OptionButton",IVORY)
+	palette.set_color("font_hover_color","OptionButton",IVORY)
+	palette.set_stylebox("panel","PopupMenu",chrome(FRAME,27,27,15,12))
+	palette.set_stylebox("hover","PopupMenu",skin(Color("#20484a"),GOLD,4))
+	palette.set_stylebox("slider","HSlider",chrome(SLIDER,14,8,0,8))
+	palette.set_stylebox("grabber_area","HSlider",chrome(SLIDER_FILL,13,8,0,8))
+	palette.set_stylebox("grabber_area_highlight","HSlider",chrome(SLIDER_FILL,13,8,0,8))
+	for state in ["grabber","grabber_highlight","grabber_disabled"]:
+		palette.set_icon(state,"HSlider",GEM)
+	theme = palette
+	stage_styles = [chrome(TAB,22,11,11,9),chrome(TAB_ACTIVE,22,11,11,9)]
+	if portrait:
+		resized.connect(apply_safe_area)
+		apply_safe_area.call_deferred()
+
+func apply_safe_area() -> void:
+	if not OS.has_feature("android"):
+		return
+	var safe := DisplayServer.get_display_safe_area()
+	var pixels := Vector2(DisplayServer.window_get_size())
+	if safe.size.x <= 0 or pixels.x <= 0:
+		return
+	var factor := get_viewport_rect().size / pixels
+	offset_left = maxf(0,safe.position.x) * factor.x
+	offset_top = maxf(0,safe.position.y) * factor.y
+	offset_right = -maxf(0,pixels.x-safe.end.x) * factor.x
+	offset_bottom = -maxf(0,pixels.y-safe.end.y) * factor.y
+
+func chrome(texture: Texture2D, sx: int, sy: int, horizontal: int, vertical: int) -> StyleBoxTexture:
+	var style := StyleBoxTexture.new()
+	style.texture = texture
+	style.texture_margin_left = sx
+	style.texture_margin_right = sx
+	style.texture_margin_top = sy
+	style.texture_margin_bottom = sy
+	style.content_margin_left = horizontal
+	style.content_margin_right = horizontal
+	style.content_margin_top = vertical
+	style.content_margin_bottom = vertical
+	return style
+
+func button_skin(texture: Texture2D) -> StyleBoxTexture:
+	return chrome(texture,39,16,27,13)
+
+func graphic(parent: Node, texture: Texture2D, minimum: Vector2) -> TextureRect:
+	var art := TextureRect.new()
+	art.texture = texture
+	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	art.custom_minimum_size = minimum
+	art.mouse_filter = MOUSE_FILTER_IGNORE
+	parent.add_child(art)
+	return art
+
+func skin(fill: Color, edge: Color, margin: int) -> StyleBoxFlat:
+	var s := StyleBoxFlat.new()
+	s.bg_color = fill
+	s.border_color = edge
+	s.set_border_width_all(1)
+	s.set_corner_radius_all(3)
+	s.content_margin_left = margin
+	s.content_margin_right = margin
+	s.content_margin_top = margin
+	s.content_margin_bottom = margin
+	return s
+
+func position_control(node: Control, x: float, y: float, dx: float, dy: float) -> void:
+	node.anchor_left = x
+	node.anchor_right = x
+	node.anchor_top = y
+	node.anchor_bottom = y
+	node.offset_left = dx
+	node.offset_top = dy
+	node.offset_right = dx
+	node.offset_bottom = dy
+
+func clear_screen() -> void:
+	touch_buttons.clear()
+	touch_signature = ""
+	touch_row = null
+	target_tray = null
+	target_signature = ""
+	close_dialog()
+	close_context()
+	if is_instance_valid(screen):
+		remove_child(screen)
+		screen.queue_free()
+	screen = Control.new()
+	screen.mouse_filter = MOUSE_FILTER_IGNORE
+	add_child(screen)
+	screen.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+
+func box(panel: Control, gap := 12) -> VBoxContainer:
+	var aligner := VBoxContainer.new()
+	aligner.add_theme_constant_override("separation",gap)
+	aligner.mouse_filter = MOUSE_FILTER_IGNORE
+	panel.add_child(aligner)
+	return aligner
+
+func panel(parent: Node, min_size: Vector2, opacity := .95) -> PanelContainer:
+	var frame := PanelContainer.new()
+	var trim := chrome(FRAME,29,32,22,20)
+	trim.modulate_color = Color(1,1,1,opacity)
+	frame.add_theme_stylebox_override("panel",trim)
+	parent.add_child(frame)
+	frame.custom_minimum_size = min_size
+	return frame
+
+func label(parent: Node, content: String, size := 17, color := IVORY, serif := false) -> Label:
+	var title := Label.new()
+	title.text = content
+	title.add_theme_font_size_override("font_size",maxi(size,26) if portrait else size)
+	title.add_theme_color_override("font_color",color)
+	title.add_theme_font_override("font",main_title if serif else body_text)
+	title.mouse_filter = MOUSE_FILTER_IGNORE
+	parent.add_child(title)
+	return title
+
+func divider(parent: Node) -> void:
+	graphic(parent,DIVIDER,Vector2(100,16))
+
+func paragraph(parent: Node, content: String, width: float) -> Label:
+	var text := label(parent,content,17,MUTED)
+	text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	text.custom_minimum_size.x = minf(width,self.size.x-144) if portrait else width
+	return text
+
+func button(parent: Node, content: String, callback: Callable, width := 0, primary := false) -> Button:
+	var item := Button.new()
+	item.text = content
+	item.focus_mode = FOCUS_NONE
+	item.custom_minimum_size.x = width
+	if primary:
+		item.add_theme_stylebox_override("normal",button_skin(PRIMARY))
+	item.custom_minimum_size.y = 88 if portrait else 45
+	item.mouse_default_cursor_shape = CURSOR_POINTING_HAND
+	item.pressed.connect(callback)
+	parent.add_child(item)
+	return item
+
+func fade(node: Control) -> void:
+	node.modulate.a = 0.0
+	node.create_tween().tween_property(node,"modulate:a",1.0,.25)
+
+func show_menu() -> void:
+	clear_screen()
+	if portrait:
+		show_portrait_menu()
+		return
+	var banner := graphic(screen,BANNER,Vector2(368,804))
+	position_control(banner,.048,.023,0,0)
+	var column := box(screen,8)
+	column.custom_minimum_size.x = 316
+	position_control(column,.048,.187,26,0)
+	var title := label(column,"SESTRIA",83,IVORY,true)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_color_override("font_outline_color",Color("#66472d"))
+	title.add_theme_constant_override("outline_size",3)
+	var subtitle := label(column,"S E I   D A D I .   M I L L E   S T R A T E G I E .",16,GOLD,true)
+	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	divider(column)
+	button(column,"NUOVA PARTITA",game.prepare,316,true)
+	button(column,"TATTICHE",show_equipped,316)
+	button(column,"DIFFICOLTÀ · " + TITLES[game.difficulty].to_upper(),show_difficulty,316)
+	button(column,"REGOLE",show_rules,316)
+	button(column,"IMPOSTAZIONI",show_settings,316)
+	button(column,"ESCI",func():get_tree().quit(),316)
+	fade(banner)
+	fade(column)
+
+func modal(title: String, width: float) -> VBoxContainer:
+	close_dialog(true)
+	close_context()
+	dialog = Control.new()
+	add_child(dialog)
+	dialog.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+	var shade := ColorRect.new()
+	shade.color = Color(0.02,0.04,0.05,.58)
+	dialog.add_child(shade)
+	shade.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+	var center := CenterContainer.new()
+	dialog.add_child(center)
+	center.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+	if portrait:
+		width = minf(width,size.x-48)
+	var card := panel(center,Vector2(width,0))
+	var body: VBoxContainer
+	if portrait:
+		var scroll := ScrollContainer.new()
+		scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		card.add_child(scroll)
+		body = box(scroll,16)
+		body.size_flags_horizontal = SIZE_EXPAND_FILL
+		fit_scroll.call_deferred(card,scroll,body,width)
+	else:
+		body = box(card,13)
+	var heading := label(body,title,33,IVORY,true)
+	heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	divider(body)
+	fade(card)
+	return body
+
+func fit_scroll(card: PanelContainer, scroll: ScrollContainer, body: VBoxContainer, width: float, max_height := 0.0) -> void:
+	if not is_instance_valid(card):
+		return
+	scroll.custom_minimum_size = Vector2(width-44,minf(body.get_combined_minimum_size().y,max_height if max_height > 0 else size.y-144))
+
+func close_dialog(keep_pause := false) -> void:
+	if paused_for_menu and not keep_pause:
+		get_tree().paused = false
+		paused_for_menu = false
+	if is_instance_valid(dialog):
+		remove_child(dialog)
+		dialog.queue_free()
+		dialog = null
+
+func close_context() -> void:
+	if is_instance_valid(context_popup):
+		screen.remove_child(context_popup)
+		context_popup.queue_free()
+		context_popup = null
+
+func show_rules() -> void:
+	var body := modal("Regole",570)
+	var text := RULES_TEXT
+	if portrait:
+		text = text.replace("Clic su un dado per tenerlo. Clic destro per ispezionarlo. Clic sui totem per consultare o attivare una tattica.","Tocca un dado sul tavolo o nella barra per tenerlo. Attiva Ispeziona e tocca un dado per vedere le facce. Tocca i totem per consultare o attivare una tattica.")
+	paragraph(body,text,530)
+	button(body,"Chiudi",close_dialog)
+
+func show_difficulty() -> void:
+	var body := modal("Difficoltà",420)
+	for i in TITLES.size():
+		var item := button(body,TITLES[i].to_upper(),choose_difficulty.bind(i))
+		if i == game.difficulty:
+			item.add_theme_stylebox_override("normal",button_skin(SELECTED))
+	button(body,"Indietro",close_dialog)
+
+func choose_difficulty(value: int) -> void:
+	game.difficulty = value
+	game.save_settings()
+	show_menu()
+
+func show_settings(active := 0) -> void:
+	var body := modal("Impostazioni",570)
+	var tabs := HBoxContainer.new()
+	tabs.add_theme_constant_override("separation",5)
+	body.add_child(tabs)
+	for i in 3:
+		var tab := button(tabs,["AUDIO","GRAFICA","COMANDI"][i],show_settings.bind(i),0,i==active)
+		tab.size_flags_horizontal = SIZE_EXPAND_FILL
+	match active:
+		0:
+			slider(body,"Musica",game.music_volume,game.change_music)
+			slider(body,"Effetti sonori",game.effects_volume,change_effects)
+		1:
+			for i in 2:
+				var item := button(body,["Alta · Risoluzione nativa","Ridotta · Modalità prestazioni"][i],select_graphics.bind(i==1))
+				if (i==1) == game.reduced:
+					item.add_theme_stylebox_override("normal",button_skin(SELECTED))
+		2:
+			if portrait:
+				paragraph(body,"Tocca un dado sul tavolo o nella barra in basso per tenerlo. I dadi turchesi sono selezionati.\n\nAttiva Ispeziona e tocca un dado per vedere le sei facce.\n\nTocca un totem o i pulsanti dele tattiche per invocarlo. Menu e il tasto Indietro di Android aprono la pausa.",500)
+			else:
+				paragraph(body,"Clic sinistro · Seleziona un dado o un totem
+Clic destro · Ispeziona le sei facce
+Spazio / Invio · Lancia, conferma o avanza
+Esc · Chiudi il pannello o lascia il tavolo",500)
+	button(body,"Indietro",close_dialog)
+
+func change_effects(value: float) -> void:
+	game.effects_volume = value
+	game.save_settings()
+
+func select_graphics(reduced: bool) -> void:
+	game.change_quality(reduced)
+	show_settings(1)
+
+func slider(parent: Node, title: String, value: float, callback: Callable) -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation",13)
+	parent.add_child(row)
+	var caption := label(row,title,17,IVORY,true)
+	caption.custom_minimum_size.x = 130
+	var control := HSlider.new()
+	control.max_value = 1.0
+	control.step = .01
+	control.value = value
+	control.custom_minimum_size.y = 88.0 if portrait else 26.0
+	control.size_flags_horizontal = SIZE_EXPAND_FILL
+	row.add_child(control)
+	var current := label(row,"%d%%" % roundi(value*100),16,GOLD,true)
+	current.custom_minimum_size.x = 45
+	control.value_changed.connect(func(next):
+		current.text = "%d%%" % roundi(next*100)
+		callback.call(next))
+
+func show_equipped() -> void:
+	var body := modal("Tattiche",920)
+	var slots := VBoxContainer.new()
+	body.add_child(slots)
+	var select := OptionButton.new()
+	select.custom_minimum_size.y = 88 if portrait else 45
+	for i in 3:
+		select.add_item("Posto %d · %s" % [i+1,Rules.FAVOR[game.equipped[i]][0]])
+	slots.add_child(select)
+	var detail := label(slots,"",15,MUTED)
+	detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	detail.custom_minimum_size.x = 540 if portrait else 0
+	detail.size_flags_horizontal = SIZE_EXPAND_FILL
+	var grid := GridContainer.new()
+	grid.columns = 2 if portrait else 5
+	grid.add_theme_constant_override("h_separation",7)
+	grid.add_theme_constant_override("v_separation",7)
+	body.add_child(grid)
+	var ids := Rules.FAVOR.keys()
+	for index in ids.size():
+		var id: String = ids[index]
+		var entry := button(grid,Rules.FAVOR[id][0],func():
+			var old: int = game.equipped.find(id)
+			if old >= 0:
+				game.equipped[old] = game.equipped[select.selected]
+			game.equipped[select.selected] = id
+			game.save_settings()
+			var data: Array = Rules.FAVOR[id]
+			detail.text = "%s\n%s · %s / %s / %s gettoni" % [data[0],data[4] % data[3][0],data[2][0],data[2][1],data[2][2]]
+			for i in 3:
+				select.set_item_text(i,"Posto %d · %s" % [i+1,Rules.FAVOR[game.equipped[i]][0]])
+		,260 if portrait else 165)
+		entry.icon = load("res://assets/icons/favor_%02d.svg"%index)
+		entry.add_theme_constant_override("icon_max_width",22)
+		entry.add_theme_font_size_override("font_size",24 if portrait else 13)
+		if portrait:
+			entry.clip_text = true
+			entry.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		entry.mouse_entered.connect(func():
+			var data: Array = Rules.FAVOR[id]
+			detail.text = "%s · %s / %s / %s gettoni" % [data[4] % data[3][0],data[2][0],data[2][1],data[2][2]])
+	button(body,"Indietro",close_dialog)
+
+func hud_outline(text: Label) -> void:
+	text.add_theme_color_override("font_outline_color",Color("#0b1516"))
+	text.add_theme_constant_override("outline_size",5)
+
+func match_layout() -> void:
+	clear_screen()
+	health_count = []
+	token_count = []
+	health_segments = [[],[]]
+	stage_tabs = []
+	for side in [1,0]:
+		var width := (size.x-60)/2 if portrait else 237.0
+		var crest := panel(screen,Vector2(width,0),.95)
+		crest.mouse_filter = MOUSE_FILTER_IGNORE
+		crest.add_theme_stylebox_override("panel",chrome(FRAME,27,25,15,10))
+		position_control(crest,0 if side == 1 else 1,.0 if portrait else .023,24 if side == 1 else -width-24,20 if portrait else 0)
+		if not portrait:
+			position_control(crest,.025 if side == 1 else .975,.023,0 if side == 1 else -width,0)
+		var card := box(crest,4)
+		var nameplate := label(card,"AVVERSARIO" if side == 1 else "TU",14,GOLD)
+		hud_outline(nameplate)
+		nameplate.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT if side == 1 else HORIZONTAL_ALIGNMENT_RIGHT
+		var values := HBoxContainer.new()
+		values.add_theme_constant_override("separation",6)
+		values.alignment = BoxContainer.ALIGNMENT_BEGIN if side == 1 else BoxContainer.ALIGNMENT_END
+		card.add_child(values)
+		graphic(values,HEART,Vector2(22,22))
+		health_count.push_front(label(values,"15",25,IVORY,true))
+		label(values,"/ 15",13,MUTED)
+		graphic(values,TOKEN,Vector2(22,22))
+		token_count.push_front(label(values,"0",25,GOLD,true))
+		var strip := HBoxContainer.new()
+		strip.alignment = BoxContainer.ALIGNMENT_BEGIN if side == 1 else BoxContainer.ALIGNMENT_END
+		strip.add_theme_constant_override("separation",4)
+		card.add_child(strip)
+		for i in 15:
+			var cell := ColorRect.new()
+			cell.custom_minimum_size = Vector2(8,3)
+			cell.mouse_filter = MOUSE_FILTER_IGNORE
+			strip.add_child(cell)
+			health_segments[side].append(cell)
+	var phases := box(screen,7)
+	phases.custom_minimum_size.x = size.x-48 if portrait else 480
+	position_control(phases,.5,0 if portrait else .022,-(size.x-48)/2 if portrait else -240,158 if portrait else 0)
+	phase_label = label(phases,"",22,IVORY,true)
+	hud_outline(phase_label)
+	phase_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var track := HBoxContainer.new()
+	track.add_theme_constant_override("separation",5)
+	phases.add_child(track)
+	for name in ["LANCIO","ORDINA","TATTICHE","RISOLVI"]:
+		var tab := label(track,name,13,MUTED,true)
+		tab.size_flags_horizontal = SIZE_EXPAND_FILL
+		tab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		stage_tabs.append(tab)
+	set_stage(0)
+	var footer := label(screen,"Clic destro  ·  Ispeziona     Esc  ·  Menu",13,IVORY)
+	footer.visible = not portrait
+	hud_outline(footer)
+	position_control(footer,.035,.953,0,0)
+	prompt = panel(screen,Vector2(225,0),.94)
+	prompt.add_theme_stylebox_override("panel",StyleBoxEmpty.new())
+	position_control(prompt,.965,.777,-225,0)
+	prompt_layout = box(prompt,6)
+	prompt.mouse_filter = MOUSE_FILTER_IGNORE
+	message_panel = panel(screen,Vector2(231,0),.91)
+	position_control(message_panel,.035,.170,0,0)
+	message_panel.mouse_filter = MOUSE_FILTER_IGNORE
+	var messages := box(message_panel,4)
+	feedback = label(messages,"",23,IVORY,true)
+	feedback.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	feedback.custom_minimum_size.x = 203
+	combat_result = label(messages,"",14,GOLD)
+	combat_result.hide()
+	prompt.hide()
+	message_panel.hide()
+	if portrait:
+		setup_touch_controls()
+		layout_portrait_prompt()
+
+func layout_portrait_prompt() -> void:
+	if not portrait:
+		return
+	prompt.custom_minimum_size.x = size.x-48
+	position_control(prompt,0,1,24,-204)
+	message_panel.custom_minimum_size.x = size.x-48
+	feedback.custom_minimum_size.x = size.x-92
+	feedback.add_theme_font_size_override("font_size",28)
+	position_control(message_panel,0,0,24,332)
+
+func set_stage(active: int) -> void:
+	for index in stage_tabs.size():
+		stage_tabs[index].add_theme_color_override("font_color",TURQUOISE if index == active else MUTED)
+		stage_tabs[index].add_theme_stylebox_override("normal",stage_styles[int(index==active)])
+
+func stats(hp: Array, gold: Array, round_no: int, first: int) -> void:
+	for side in 2:
+		health_count[side].text = str(hp[side])
+		health_count[side].add_theme_color_override("font_color",Color("#f0a878") if hp[side] <= 4 else IVORY)
+		token_count[side].text = str(gold[side])
+		for i in 15:
+			health_segments[side][i].color = (Color("#eb9a65") if hp[side] <= 4 else Color("#69c1a9")) if i < hp[side] else Color("#3d4840")
+	phase_label.text = "Manche %02d   ·   Iniziativa %s" % [round_no,"tua" if first == 0 else "avversaria"]
+
+func reset_prompt() -> void:
+	close_context()
+	for kid in prompt_layout.get_children():
+		prompt_layout.remove_child(kid)
+		kid.queue_free()
+	prompt.hide()
+	prompt.reset_size()
+	feedback.text = ""
+	combat_result.hide()
+	position_control(message_panel,.035,.170,0,0)
+	message_panel.reset_size()
+	position_control(prompt,.965,.777,-225,0)
+	layout_portrait_prompt()
+
+func action(message: String, action_name: String, callback: Callable) -> void:
+	reset_prompt()
+	feedback.text = message
+	message_panel.show()
+	prompt.show()
+	button(prompt_layout,action_name,callback,0,true)
+	fade(prompt)
+
+func status(message: String) -> void:
+	reset_prompt()
+	close_dialog()
+	feedback.text = message
+	message_panel.show()
+
+func coin_prompt() -> void:
+	var body := modal("Testa o croce?",420)
+	paragraph(body,"La moneta decide chi lancia per primo.",380)
+	button(body,"Testa",game.toss.bind(0),0,true)
+	button(body,"Croce",game.toss.bind(1))
+
+func favor_stage() -> void:
+	action("Scegli un totem o passa", "Passa",game.resolve.bind({}))
+	var row := HBoxContainer.new()
+	prompt_layout.add_child(row)
+	prompt_layout.move_child(row,0)
+	for id in game.equipped:
+		var short: String = Rules.FAVOR[id][0].split("’")[0]
+		var entry := button(row,short,game.inspect_favor.bind(0,id),0)
+		entry.add_theme_stylebox_override("normal",chrome(SECONDARY,19,13,7,10))
+		entry.add_theme_stylebox_override("hover",chrome(HOVER,19,13,7,10))
+		entry.add_theme_stylebox_override("pressed",chrome(SELECTED,19,13,7,10))
+		entry.add_theme_font_size_override("font_size",26 if portrait else 13)
+		entry.size_flags_horizontal = SIZE_EXPAND_FILL
+	position_control(prompt,.965,.715,-225,0)
+	layout_portrait_prompt()
+
+func context_frame(width: float, y: float) -> VBoxContainer:
+	close_context()
+	if portrait:
+		width = size.x-48
+	context_popup = panel(screen,Vector2(width,0),.97)
+	position_control(context_popup,.977,y,-width,0)
+	var contents: VBoxContainer
+	if portrait:
+		position_control(context_popup,0,0,24,240)
+		var scroll := ScrollContainer.new()
+		scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		context_popup.add_child(scroll)
+		contents = box(scroll,12)
+		contents.size_flags_horizontal = SIZE_EXPAND_FILL
+		fit_scroll.call_deferred(context_popup,scroll,contents,width,size.y-328)
+	else:
+		contents = box(context_popup,8)
+	fade(context_popup)
+	return contents
+
+func inspect_die(id: int, face: int) -> void:
+	var contents := context_frame(224,.33)
+	var data := Rules.die(id,face)
+	label(contents,Rules.NAMES[data.kind],25,IVORY,true)
+	paragraph(contents,["Danno corpo a corpo","Danno a distanza","Blocca un’ascia","Blocca una freccia","Sottrae un gettone"][data.kind],182)
+	if data.gold:
+		label(contents,"+1 gettone",14,GOLD)
+	var grid := GridContainer.new()
+	grid.columns = 3
+	grid.add_theme_constant_override("h_separation",4)
+	grid.add_theme_constant_override("v_separation",4)
+	contents.add_child(grid)
+	for cell in [-1,2,-1,5,0,4,-1,3,-1,-1,1,-1]:
+		var tile := PanelContainer.new()
+		tile.custom_minimum_size = Vector2(88,88) if portrait else Vector2(54,54)
+		grid.add_child(tile)
+		if cell >= 0:
+			var info := Rules.die(id,cell)
+			tile.add_theme_stylebox_override("panel",skin(Color("#d7b880"),GOLD if cell==face else Color("#6e583a"),0))
+			var icon := TextureRect.new()
+			icon.texture = load("res://assets/icons/face_%d%s.svg"%[info.kind,"_gold" if info.gold else ""])
+			icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			icon.mouse_filter = MOUSE_FILTER_IGNORE
+			tile.add_child(icon)
+		else:
+			tile.add_theme_stylebox_override("panel",StyleBoxEmpty.new())
+	button(contents,"Chiudi",close_context)
+
+func favor_popup(id: String, actionable: bool) -> void:
+	var contents := context_frame(350,.26)
+	var data: Array = Rules.FAVOR[id]
+	label(contents,data[0],24,IVORY,true)
+	label(contents,"Priorità %d" % data[1],15,GOLD)
+	divider(contents)
+	var sacrifice: SpinBox
+	if actionable and id in ["reserve","exchange"]:
+		label(contents,"Pietre da sacrificare",15,MUTED)
+		sacrifice = SpinBox.new()
+		sacrifice.custom_minimum_size.y = 88 if portrait else 45
+		sacrifice.min_value = 1.0 if game.rules.hp[0] > 1 else 0.0
+		sacrifice.max_value = maxi(0,game.rules.hp[0]-1)
+		sacrifice.value = sacrifice.min_value
+		if portrait:
+			var stepper := HBoxContainer.new()
+			stepper.add_theme_constant_override("separation",12)
+			contents.add_child(stepper)
+			button(stepper,"−",func():sacrifice.value -= 1,88)
+			stepper.add_child(sacrifice)
+			sacrifice.size_flags_horizontal = SIZE_EXPAND_FILL
+			button(stepper,"+",func():sacrifice.value += 1,88)
+		else:
+			contents.add_child(sacrifice)
+	for level in 3:
+		var description: String = data[4] % data[3][level]
+		var text := "%d gettoni · Livello %d" % [data[2][level],level+1]
+		if actionable:
+			button(contents,text,func():
+				var units := int(sacrifice.value) if is_instance_valid(sacrifice) else 0
+				close_context()
+				game.pick_favor(id,level,units))
+		else:
+			label(contents,text,15,GOLD)
+		paragraph(contents,description,302)
+	button(contents,"Chiudi",close_context)
+
+func selection_count(value: int, limit: int) -> void:
+	feedback.text = "Seconda occasione · %d / %d dadi selezionati" % [value,limit]
+
+func describe_event(event: Dictionary) -> void:
+	combat_result.hide()
+	var amount: int = event.amount
+	feedback.text = "%s%s" % [event.text, "  ·  %d" % amount if amount > 0 else ""]
+	message_panel.reset_size()
+	position_control(message_panel,.035,.170,0,0)
+	layout_portrait_prompt()
+
+func combat_detail(title: String, amount: int, damage: bool) -> void:
+	feedback.text = title
+	combat_result.text = "%d %s" % [amount,
+		("pietra persa" if amount == 1 else "pietre perse") if damage else ("attacco parato" if amount == 1 else "attacchi parati")]
+	combat_result.add_theme_color_override("font_color",Color("#ffae7c") if damage else Color("#a3e4e9"))
+	combat_result.show()
+	position_control(message_panel,.035,.170,0,0)
+	message_panel.reset_size()
+	layout_portrait_prompt()
+
+func finish(victory: bool) -> void:
+	var body := modal("Vittoria" if victory else "Sconfitta",460)
+	paragraph(body,"Pietre rimaste   ·   Tu %d   /   Avversario %d" % game.rules.hp,420)
+	button(body,"Rivincita",func():close_dialog();game.prepare(),0,true)
+	button(body,"Menu principale",game.menu)
+
+func ask_leave() -> void:
+	paused_for_menu = true
+	get_tree().paused = true
+	var body := modal("Lasciare il tavolo?",420)
+	button(body,"Continua a giocare",close_dialog,0,true)
+	button(body,"Impostazioni",show_settings)
+	button(body,"Torna al menu",game.menu)
+
+func show_portrait_menu() -> void:
+	var banner := graphic(screen,BANNER,Vector2(640,1200))
+	position_control(banner,.5,0,-320,20)
+	var column := box(screen,18)
+	column.custom_minimum_size.x = 540
+	position_control(column,.5,.13,-270,0)
+	var title := label(column,"SESTRIA",94,IVORY,true)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var subtitle := label(column,"SEI DADI. MILLE STRATEGIE.",26,GOLD,true)
+	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	divider(column)
+	button(column,"NUOVA PARTITA",game.prepare,540,true)
+	button(column,"TATTICHE",show_equipped,540)
+	button(column,"DIFFICOLTÀ · " + TITLES[game.difficulty].to_upper(),show_difficulty,540)
+	button(column,"REGOLE",show_rules,540)
+	button(column,"IMPOSTAZIONI",show_settings,540)
+	var hint := label(column,"Sei dadi. Tre tattiche. Il tuo destino.",23,MUTED)
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	fade(column)
+
+func setup_touch_controls() -> void:
+	inspect_mode = false
+	var tools := HBoxContainer.new()
+	tools.add_theme_constant_override("separation",12)
+	screen.add_child(tools)
+	position_control(tools,0,0,24,232)
+	tools.custom_minimum_size.x = size.x-48
+	button(tools,"Menu",game.go_back,180)
+	var inspect := button(tools,"Ispeziona",func():pass)
+	inspect.size_flags_horizontal = SIZE_EXPAND_FILL
+	inspect.toggle_mode = true
+	inspect.toggled.connect(func(enabled):
+		inspect_mode = enabled
+		inspect.text = "Ispeziona · ON" if enabled else "Ispeziona"
+		touch_signature = "")
+	var tray := panel(screen,Vector2(size.x-48,0))
+	touch_tray = tray
+	position_control(tray,0,1,24,-368)
+	var contents := box(tray,8)
+	label(contents,"I TUOI DADI  ·  Tocca per tenere",22,GOLD)
+	touch_row = HBoxContainer.new()
+	touch_row.add_theme_constant_override("separation",8)
+	contents.add_child(touch_row)
+	for id in 6:
+		var entry := button(touch_row,"",touch_die.bind(id))
+		entry.custom_minimum_size = Vector2(88,88)
+		entry.size_flags_horizontal = SIZE_EXPAND_FILL
+		entry.add_theme_constant_override("icon_max_width",48)
+		entry.add_theme_stylebox_override("normal",chrome(SECONDARY,19,13,8,10))
+		entry.expand_icon = true
+		for state in ["normal","hover","pressed","disabled","focus"]:
+			entry.add_theme_stylebox_override(state,touch_die_skin(false))
+		touch_buttons.append(entry)
+	target_tray = panel(screen,Vector2(size.x-48,0))
+	position_control(target_tray,0,1,24,-620)
+	target_tray.hide()
+	update_touch_dice()
+
+func touch_die_skin(selected: bool) -> StyleBoxFlat:
+	var style := skin(Color("#a3e4da") if selected else Color("#ead7b2"),TURQUOISE if selected else GOLD,12)
+	style.set_border_width_all(4 if selected else 2)
+	style.set_corner_radius_all(10)
+	return style
+
+func touch_die(id: int) -> void:
+	var cube: Node3D = game.cubes[0][id]
+	if inspect_mode or game.phase not in ["select","target"] or (cube.committed and game.phase != "target"):
+		inspect_die(id,cube.face)
+	else:
+		game.interact_die_or_favor(cube,false)
+	touch_signature = ""
+
+func update_touch_dice() -> void:
+	if touch_buttons.is_empty():
+		return
+	update_target_tray()
+	var signature: String = game.phase + str(inspect_mode)
+	for cube in game.cubes[0].slice(0,6):
+		signature += "%d:%s:%s;" % [cube.face,cube.selected,cube.committed]
+	if signature == touch_signature:
+		return
+	touch_signature = signature
+	for id in 6:
+		var cube: Node3D = game.cubes[0][id]
+		var data := Rules.die(id,cube.face)
+		var entry := touch_buttons[id]
+		entry.icon = load("res://assets/icons/face_%d%s.svg" % [data.kind,"_gold" if data.gold else ""])
+		entry.disabled = game.phase not in ["select","roll","favor","target","between"]
+		entry.modulate = Color(1,1,1,.58) if cube.committed else Color.WHITE
+		entry.add_theme_stylebox_override("normal",touch_die_skin(cube.selected))
+
+func update_target_tray() -> void:
+	if not is_instance_valid(target_tray):
+		return
+	target_tray.visible = game.phase == "target"
+	touch_tray.visible = not target_tray.visible
+	if not target_tray.visible:
+		target_signature = ""
+		return
+	var signature := str(game.targets)
+	if signature == target_signature:
+		return
+	target_signature = signature
+	for child in target_tray.get_children():
+		target_tray.remove_child(child)
+		child.queue_free()
+	var contents := box(target_tray,8)
+	label(contents,"FRIGG · TOCCA I BERSAGLI",26,GOLD)
+	for side in [1,0]:
+		label(contents,"Avversario" if side == 1 else "Tu",26,MUTED)
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation",8)
+		contents.add_child(row)
+		for cube in game.cubes[side]:
+			if not cube.committed or not cube.visible:
+				continue
+			var data := Rules.die(cube.die_id,cube.face)
+			var entry := button(row,"",game.interact_die_or_favor.bind(cube,false))
+			entry.custom_minimum_size = Vector2(88,88)
+			entry.size_flags_horizontal = SIZE_EXPAND_FILL
+			entry.icon = load("res://assets/icons/face_%d%s.svg" % [data.kind,"_gold" if data.gold else ""])
+			entry.add_theme_constant_override("icon_max_width",48)
+			entry.expand_icon = true
+			for state in ["normal","hover","pressed","focus"]:
+				entry.add_theme_stylebox_override(state,touch_die_skin(cube.selected))
+
+func _unhandled_key_input(event: InputEvent) -> void:
+	if paused_for_menu and event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+		game.go_back()
+		get_viewport().set_input_as_handled()

@@ -1,0 +1,5 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.sestria.smoke">
+  <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="36"/>
+  <application android:label="Sestria Smoke Test" />
+  <instrumentation android:name="com.sestria.smoke.SestriaSmoke" android:targetPackage="com.orlog.valhalla.debug" android:functionalTest="true" />
+</manifest>

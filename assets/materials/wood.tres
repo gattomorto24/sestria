@@ -1,0 +1,14 @@
+[gd_resource type="ShaderMaterial" load_steps=4 format=3]
+
+[ext_resource type="Shader" path="res://assets/materials/table_surface.gdshader" id="1"]
+[ext_resource type="Texture2D" path="res://assets/pbr/oak.png" id="2"]
+[ext_resource type="Texture2D" path="res://assets/pbr/oak_surface.png" id="3"]
+
+[resource]
+shader = ExtResource("1")
+shader_parameter/albedo_map = ExtResource("2")
+shader_parameter/surface_map = ExtResource("3")
+shader_parameter/tint = Color(1.08, 1.0, 0.91, 1)
+shader_parameter/tiling = Vector2(1.11, 0.22)
+shader_parameter/relief = 0.03
+shader_parameter/fabric = false

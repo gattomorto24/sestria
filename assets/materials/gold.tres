@@ -1,0 +1,14 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://assets/materials/surface.gdshader" id="1_civ4i"]
+
+[resource]
+resource_name = "gold"
+render_priority = 0
+shader = ExtResource("1_civ4i")
+shader_parameter/low = Color(0.5058824, 0.3137255, 0.13725491, 1)
+shader_parameter/high = Color(0.91764706, 0.7372549, 0.34509805, 1)
+shader_parameter/material_kind = 2
+shader_parameter/scale_factor = 4.0
+shader_parameter/metal = 0.7
+shader_parameter/rough = 0.35

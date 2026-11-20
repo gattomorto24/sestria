@@ -1,0 +1,8 @@
+.godot/
+.DS_Store
+build/
+
+android/build/.gradle/
+android/build/build/
+android/build/local.properties
+android/build/src/main/assets/
