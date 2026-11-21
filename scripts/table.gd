@@ -1,5 +1,6 @@
 extends Node3D
 
+const Platform = preload("res://scripts/platform.gd")
 const Surface = preload("res://assets/materials/surface.gdshader")
 const BOWL_Z := [2.22,-2.22]
 const LANE_ORDER := [0,2,1,3,4]
@@ -149,6 +150,9 @@ func make_environment() -> void:
 	env.fog_enabled = true
 	env.fog_light_color = Color("#594637")
 	env.fog_density = .004
+	# Compatibility (web) applicherebbe la nebbia anche al fondo, che deve restare scuro come sul desktop.
+	if Platform.is_web():
+		env.fog_sky_affect = 0.0
 	world.environment = env
 	add_child(world)
 	fill = DirectionalLight3D.new()

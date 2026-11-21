@@ -1,6 +1,7 @@
 extends Control
 
 const Rules = preload("res://scripts/rules.gd")
+const Platform = preload("res://scripts/platform.gd")
 const TITLES := ["Esploratore","Guerriero","Maestro"]
 const TITLE_FONT = preload("res://assets/fonts/Cinzel.ttf")
 const BODY_FONT = preload("res://assets/fonts/Manrope.ttf")
@@ -262,7 +263,8 @@ func show_menu() -> void:
 		small.add_theme_stylebox_override("pressed",chrome(SELECTED,19,13,8,10))
 	button(column,"REGOLE",show_rules,336)
 	button(column,"IMPOSTAZIONI",show_settings,336)
-	button(column,"ESCI",func():get_tree().quit(),336)
+	if Platform.can_quit():
+		button(column,"ESCI",func():get_tree().quit(),336)
 	var progress_card := PanelContainer.new()
 	progress_card.add_theme_stylebox_override("panel",skin(Color("#10252b"),GOLD,10))
 	column.add_child(progress_card)
@@ -374,6 +376,10 @@ func show_settings(active := 0) -> void:
 				var item := button(body,["Alta · Risoluzione nativa","Ridotta · Modalità prestazioni"][i],select_graphics.bind(i==1))
 				if (i==1) == game.reduced:
 					item.add_theme_stylebox_override("normal",button_skin(SELECTED))
+			if Platform.fullscreen_available():
+				button(body,"Esci dallo schermo intero" if Platform.is_fullscreen() else "Schermo intero",func():
+					Platform.toggle_fullscreen()
+					show_settings(1))
 		2:
 			if portrait:
 				paragraph(body,"Tocca un dado sul tavolo o nella barra in basso per tenerlo. I dadi turchesi sono selezionati.\n\nAttiva Ispeziona e tocca un dado per vedere le sei facce.\n\nTocca un totem o i pulsanti dele tattiche per invocarlo. Menu e il tasto Indietro di Android aprono la pausa.",500)
@@ -383,10 +389,14 @@ Clic destro · Ispeziona le sei facce
 Spazio / Invio · Lancia, conferma o avanza
 Esc · Chiudi il pannello o lascia il tavolo",500)
 		3:
-			label(body,"SESTRIA · VERSIONE "+game.updater.current_version,17,GOLD,true)
-			paragraph(body,"Gli aggiornamenti provengono dalle release pubbliche di GitHub. Il pacchetto scaricato viene verificato con SHA-256 prima di essere mostrato.",500)
-			button(body,"AGGIORNAMENTI",show_updates,0,true)
-			button(body,"Apri le release su GitHub",func():OS.shell_open(game.updater.RELEASES))
+			if game.updater:
+				label(body,"SESTRIA · VERSIONE "+game.updater.current_version,17,GOLD,true)
+				paragraph(body,"Gli aggiornamenti provengono dalle release pubbliche di GitHub. Il pacchetto scaricato viene verificato con SHA-256 prima di essere mostrato.",500)
+				button(body,"AGGIORNAMENTI",show_updates,0,true)
+				button(body,"Apri le release su GitHub",func():OS.shell_open(game.updater.RELEASES))
+			else:
+				label(body,"SESTRIA · VERSIONE "+str(ProjectSettings.get_setting("application/config/version","")),17,GOLD,true)
+				paragraph(body,"Edizione web: si aggiorna da sola. I progressi restano in questo browser.",500)
 	button(body,"Indietro",close_dialog)
 
 func change_effects(value: float) -> void:
@@ -909,8 +919,9 @@ func show_play_modes() -> void:
 	paragraph(body,"%s · Rivale %s · %d gettoni iniziali. Vittoria: %d XP." % [game.progression.TITLES[run.tier],TITLES[run.ai_level],run.enemy_gold,game.progression.victory_xp(run)],560)
 	button(body,"CONTINUA LA SAGA",game.prepare,0,true)
 	paragraph(body,"Vinci, sali di livello e ottieni 2 punti Pass a ogni avanzamento. I potenziamenti si attivano dalla prossima saga.",560)
-	button(body,"SFIDA LAN · STESSA RETE",show_lan)
-	paragraph(body,"La LAN collega due computer o dispositivi sulla stessa rete. Regole standard, senza buff o ricompense XP. Nessun account obbligatorio, nessun server di gioco.",560)
+	if Platform.lan_available():
+		button(body,"SFIDA LAN · STESSA RETE",show_lan)
+		paragraph(body,"La LAN collega due computer o dispositivi sulla stessa rete. Regole standard, senza buff o ricompense XP. Nessun account obbligatorio, nessun server di gioco.",560)
 	button(body,"Indietro",close_dialog)
 
 func show_pass(scroll_y := 0) -> void:
