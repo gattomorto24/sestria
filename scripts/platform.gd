@@ -17,10 +17,11 @@ static func updater_available() -> bool:
 static func can_quit() -> bool:
 	return not is_web()
 
-# Punto d'innesto per le partite online senza server (WebRTC). Finché il trasporto non esiste resta false;
-# la sessione online lo imposterà a true dove il browser lo supporta.
+# Punto d'innesto per le partite online senza server (WebRTC + tracker WebSocket). Sul web è sempre disponibile:
+# WebRTCPeerConnection e WebSocketPeer sono nel template web e usano le API native del browser.
+# Sulle app native resta false finché la sessione online non le abilita: basta allargare questa condizione.
 static func online_available() -> bool:
-	return false
+	return is_web()
 
 static func fullscreen_available() -> bool:
 	return is_web()
