@@ -43,6 +43,7 @@ func reset_dir() -> void:
 			folder.remove(name)
 
 func run() -> void:
+	var BUILTIN := Content.builtin_version()
 	Content.dir = SECRET_DIR
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(SECRET_DIR))
 	reset_dir()
@@ -153,9 +154,9 @@ func run() -> void:
 	file.close()
 	Content.write_state({"installed":{"version":"9.9","file":installed_file.get_file(),"sha256":real_entry.sha256,"size":original.size(),"min_base":"4.5","status":"pending","boots":0}})
 	check(Content.staged_version()=="9.9","Aggiornamento in attesa riconosciuto")
-	check(Content.apply_at_boot(true)=="none" and Content.running_version()=="4.5","Opzione --no-content-pack: nessun montaggio")
+	check(Content.apply_at_boot(true)=="none" and Content.running_version()==BUILTIN,"Opzione --no-content-pack: nessun montaggio")
 	check(Content.apply_at_boot()=="applied","Pacchetto montato all'avvio")
-	check(Content.running_version()=="9.9" and Content.builtin_version()=="4.5","Il pacchetto sostituisce i file integrati (versione in esecuzione 9.9, integrata 4.5)")
+	check(Content.running_version()=="9.9" and Content.builtin_version()==BUILTIN,"Il pacchetto sostituisce i file integrati (versione in esecuzione 9.9, integrata 4.5)")
 	check(Content.installed_record().boots==1 and Content.staged_version()=="","Avvio registrato; non più in attesa")
 	Content.confirm_boot()
 	check(Content.installed_record().status=="confirmed","Avvio confermato")

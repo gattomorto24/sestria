@@ -22,7 +22,7 @@ public final class SestriaUpdates extends GodotPlugin {
     private int flags() { return Build.VERSION.SDK_INT>=28 ? PackageManager.GET_SIGNING_CERTIFICATES : PackageManager.GET_SIGNATURES; }
     private PackageInfo installed() throws Exception { return getContext().getPackageManager().getPackageInfo(getContext().getPackageName(),flags()); }
     private long code(PackageInfo info) { return Build.VERSION.SDK_INT>=28 ? info.getLongVersionCode() : info.versionCode; }
-    @UsedByGodot public String getVersionName() { try { return installed().versionName; } catch(Exception error) { return "4.5"; } }
+    @UsedByGodot public String getVersionName() { try { return installed().versionName; } catch(Exception error) { return "4.6"; } }
     @UsedByGodot public int getVersionCode() { try { return (int)code(installed()); } catch(Exception error) { return 45; } }
     private Signature[] signatures(PackageInfo info) {
         return Build.VERSION.SDK_INT>=28 ? (info.signingInfo==null ? new Signature[0] : info.signingInfo.getApkContentsSigners()) : info.signatures;
