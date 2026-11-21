@@ -113,7 +113,7 @@ func _ready() -> void:
 	ui.setup(self)
 	stats_store=preload("res://scripts/statistics.gd").new()
 	progression=preload("res://scripts/progression.gd").new()
-	if Platform.lan_available():
+	if Platform.lan_available() or Platform.online_available():
 		lan=preload("res://scripts/lan_session.gd").new()
 		add_child(lan)
 		lan.setup(self)

@@ -4,7 +4,7 @@ Requisiti: Windows 10 o successivo a 64 bit e una scheda grafica con driver Vulk
 
 Installazione
 1. Estrai l’archivio in una cartella a tua scelta.
-2. Avvia Sestria.exe.
+2. Avvia Sestria.exe. Lascia nella stessa cartella anche il file libwebrtc_native…dll: serve alle partite online.
 
 Il programma non è firmato con un certificato commerciale: Windows SmartScreen può mostrare un avviso
 al primo avvio. Scegli Ulteriori informazioni > Esegui comunque solo se hai scaricato il pacchetto

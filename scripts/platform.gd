@@ -1,4 +1,5 @@
 extends RefCounted
+const OnlineLink = preload("res://scripts/online_link.gd")
 # Capacità della piattaforma. Il browser non può aprire socket TCP/UDP, scaricare pacchetti sul disco
 # né chiudere la pagina: ciò che non esiste sul web si nasconde da qui, in un solo punto.
 
@@ -17,11 +18,10 @@ static func updater_available() -> bool:
 static func can_quit() -> bool:
 	return not is_web()
 
-# Punto d'innesto per le partite online senza server (WebRTC + tracker WebSocket). Sul web è sempre disponibile:
-# WebRTCPeerConnection e WebSocketPeer sono nel template web e usano le API native del browser.
-# Sulle app native resta false finché la sessione online non le abilita: basta allargare questa condizione.
+# Partite online senza server (WebRTC + tracker WebSocket). Sul web usano le API del browser; sulle app native
+# servono l'estensione webrtc-native: se manca o non si carica la modalità non viene offerta.
 static func online_available() -> bool:
-	return is_web()
+	return is_web() or OnlineLink.supported()
 
 static func fullscreen_available() -> bool:
 	return is_web()

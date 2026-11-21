@@ -6,8 +6,9 @@ cd "$(dirname "$0")/.."
 version="${1:?Indica la versione, ad esempio 4.5}"
 godot_bin="${SESTRIA_GODOT:-${SESTRIA_ANDROID_TOOLS:-/tmp/sestria-android-tools}/godot}"
 release="build/release"
-mkdir -p build/desktop/windows "$release"
-rm -rf build/desktop/Sestria.app build/desktop/windows/Sestria.exe
+mkdir -p "$release"
+rm -rf build/desktop/Sestria.app build/desktop/windows
+mkdir -p build/desktop/windows
 "$godot_bin" --headless --path . --import >/dev/null 2>&1 || true
 "$godot_bin" --headless --path . --export-release "macOS" >/dev/null 2>&1
 "$godot_bin" --headless --path . --export-release "Windows x64" >/dev/null 2>&1
@@ -21,7 +22,8 @@ win="Sestria-v$version-Windows-x64"
 mkdir -p "$stage/$mac" "$stage/$win"
 cp -R build/desktop/Sestria.app "$stage/$mac/"
 cp tools/desktop/LEGGIMI-macOS.txt "$stage/$mac/LEGGIMI.txt"
-cp build/desktop/windows/Sestria.exe "$stage/$win/"
+# Accanto all'eseguibile Godot scrive le librerie delle estensioni (WebRTC per le partite online): vanno consegnate insieme.
+cp build/desktop/windows/Sestria.exe build/desktop/windows/*.dll "$stage/$win/"
 cp tools/desktop/LEGGIMI-Windows.txt "$stage/$win/LEGGIMI.txt"
 rm -f "$release/$mac.zip" "$release/$win.zip"
 (cd "$stage" && ditto -c -k --sequesterRsrc --keepParent "$mac" "$OLDPWD/$release/$mac.zip")

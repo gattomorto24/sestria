@@ -1,5 +1,7 @@
 extends Node
 const Rules = preload("res://scripts/rules.gd")
+const OnlineLink = preload("res://scripts/online_link.gd")
+const Platform = preload("res://scripts/platform.gd")
 const PORT := 32640
 const DISCOVERY_PORT := 32641
 const PROTOCOL := 43
@@ -19,7 +21,10 @@ var address := ""
 var status := ""
 var server := TCPServer.new()
 var stream: StreamPeerTCP
-var packets: PacketPeerStream
+var packets: PacketPeer
+var online: Node
+var transport := "lan"          # "lan": TCP sulla rete locale · "online": canale dati WebRTC
+var invite_code := ""
 var discovery := PacketPeerUDP.new()
 var rooms := {}
 var plans: Array = [null,null]
@@ -48,6 +53,91 @@ func setup(owner_game: Node3D) -> void:
 	if Engine.has_singleton("SestriaLAN"):
 		android_bridge=Engine.get_singleton("SestriaLAN")
 	process_mode=Node.PROCESS_MODE_ALWAYS
+	if Platform.online_available():
+		online=OnlineLink.new()
+		online.name="Online"
+		add_child(online)
+		online.guest_arrived.connect(online_guest_arrived)
+		online.joined.connect(online_joined)
+		online.problem.connect(online_problem)
+		online.rooms_changed.connect(notify_changed)
+		online.state_changed.connect(notify_changed)
+
+# ---- Partite online: l'host e l'ospite usano gli stessi messaggi della LAN su un canale WebRTC ----
+
+func online_browse() -> void:
+	if online and role=="" and not active:
+		online.browse()
+
+func host_online(listed: bool) -> void:
+	if not online:
+		return
+	close(false)
+	role="host"
+	transport="online"
+	invite_code=online.host_room(game.player_name(),listed)
+	if invite_code=="":
+		role=""
+		transport="lan"
+		return
+	trace_stage("online_host_listening")
+	status=online.status
+	notify_changed()
+
+func join_online_invite(text: String) -> void:
+	if not online:
+		return
+	close(false)
+	role="guest"
+	transport="online"
+	if online.join_invite(text)!=OK:
+		role=""
+		transport="lan"
+		return
+	trace_stage("online_guest_connecting")
+	status=online.status
+	notify_changed()
+
+func join_online_room(id: String) -> void:
+	if not online or not online.rooms.has(id):
+		return
+	close(false,true)
+	role="guest"
+	transport="online"
+	if online.join_room(id)!=OK:
+		role=""
+		transport="lan"
+		return
+	status=online.status
+	notify_changed()
+
+func online_guest_arrived() -> void:
+	if role!="host" or online.current==null:
+		return
+	packets=online.current.channel
+	last_rx=Time.get_ticks_msec()
+	deadline=last_rx+10000
+	status="Un giocatore sta entrando…"
+	notify_changed()
+
+func online_joined() -> void:
+	if role!="guest" or online.current==null:
+		return
+	packets=online.current.channel
+	last_rx=Time.get_ticks_msec()
+	deadline=last_rx+10000
+	status="Connessione alla stanza…"
+	send({"type":"hello","version":PROTOCOL,"code":"","name":game.player_name(),"loadout":game.equipped})
+	notify_changed()
+
+func online_problem(message: String) -> void:
+	# Chi non riesce a entrare torna all'elenco; chi ospita o gioca non perde la stanza per un errore di ricerca.
+	if role=="guest" and packets==null:
+		role=""
+		transport="lan"
+	status=message
+	problem.emit(message)
+	notify_changed()
 
 
 static func private_address(ip: String) -> bool:
@@ -100,7 +190,7 @@ func join_room(ip: String, code: String) -> Error:
 func is_guest() -> bool:
 	return role=="guest" and active
 
-func close(notify := true) -> void:
+func close(notify := true, keep_online := false) -> void:
 	enable_discovery(false)
 	if notify and packets and active:
 		send({"type":"bye"})
@@ -109,6 +199,10 @@ func close(notify := true) -> void:
 	stream=null
 	packets=null
 	server.stop()
+	transport="lan"
+	invite_code=""
+	if online and is_instance_valid(online) and not keep_online:
+		online.stop()
 	active=false
 	started=false
 	replaying=false
@@ -177,7 +271,21 @@ func _process(delta: float) -> void:
 			stream=incoming
 			attach_packets()
 			deadline=now+10000
-	if stream:
+	if transport=="online" and online:
+		if online.current and packets:
+			var link = online.current
+			if link.phase=="dead" or link.channel==null or link.channel.get_ready_state()!=WebRTCDataChannel.STATE_OPEN:
+				fail_connection("Connessione online interrotta. Rientra nella stanza per giocare di nuovo.")
+				return
+			if not read_packets(now):
+				return
+		if packets and not active and now>deadline:
+			fail_connection("Il giocatore non ha completato l’ingresso nella stanza.")
+			return
+		if active and now-last_rx>30000:
+			fail_connection("Il rivale non risponde più. La partita non viene contata come vittoria o sconfitta.")
+			return
+	elif stream:
 		stream.poll()
 		var state := stream.get_status()
 		if state==StreamPeerTCP.STATUS_CONNECTED and packets==null:
@@ -187,19 +295,8 @@ func _process(delta: float) -> void:
 			fail_connection("Connessione interrotta. Rientra nella stanza per giocare di nuovo.")
 			return
 		if packets:
-			for i in mini(24,packets.get_available_packet_count()):
-				var raw := packets.get_packet()
-				if raw.size()>MAX_PACKET:
-					fail_connection("Messaggio LAN non valido.")
-					return
-				var message=JSON.parse_string(raw.get_string_from_utf8())
-				if not message is Dictionary or not message.get("type",null) is String:
-					fail_connection("Protocollo LAN non valido.")
-					return
-				last_rx=now
-				receive(message)
-				if not stream:
-					return
+			if not read_packets(now):
+				return
 		if not active and now>deadline:
 			fail_connection("Stanza non raggiungibile. Controlla Wi-Fi, codice e isolamento client del router.")
 			return
@@ -218,6 +315,23 @@ func _process(delta: float) -> void:
 				send(snapshot())
 		elif role=="guest" and not replaying and started and not get_tree().paused:
 			interpolate_client(delta)
+
+# Legge i messaggi in arrivo; restituisce false se la connessione è stata chiusa per un errore.
+func read_packets(now: int) -> bool:
+	for i in mini(24,packets.get_available_packet_count()):
+		var raw := packets.get_packet()
+		if raw.size()>MAX_PACKET:
+			fail_connection("Messaggio non valido.")
+			return false
+		var message=JSON.parse_string(raw.get_string_from_utf8())
+		if not message is Dictionary or not message.get("type",null) is String:
+			fail_connection("Protocollo non valido.")
+			return false
+		last_rx=now
+		receive(message)
+		if packets==null or (transport=="lan" and not stream):
+			return false
+	return true
 
 # A room announced on the local network can be joined with one tap: the host advertises its code.
 # Rooms from older versions have no code and still need it typed in.
@@ -265,11 +379,15 @@ func valid_loadout(value: Variant) -> bool:
 func receive(message: Dictionary) -> void:
 	var type: String=message.type
 	if type=="hello" and role=="host" and not active:
-		if int(message.get("version",0))!=PROTOCOL or str(message.get("code",""))!=room_code or not valid_loadout(message.get("loadout",null)):
+		if int(message.get("version",0))!=PROTOCOL or (transport=="lan" and str(message.get("code",""))!=room_code) or not valid_loadout(message.get("loadout",null)):
 			send({"type":"error","message":"Codice errato o versione dell’app diversa."})
-			stream.disconnect_from_host()
-			stream=null
-			packets=null
+			if transport=="online":
+				packets=null
+				online.release()
+			else:
+				stream.disconnect_from_host()
+				stream=null
+				packets=null
 			return
 		peer_name=str(message.get("name","Giocatore")).left(32)
 		peer_loadout=message.loadout.duplicate()

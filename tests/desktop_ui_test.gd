@@ -37,11 +37,13 @@ func run() -> void:
 	root.add_child(game)
 	game.integration = true
 	game.music.stop()
+	if game.lan and game.lan.online:
+		game.lan.online.configure([])
 	await snapshot("menu")
 	check(not game.portrait,"Interfaccia desktop orizzontale")
 	var screens := {
 		"modes":game.ui.show_play_modes,"pass":game.ui.show_pass,"stats":game.ui.show_statistics,
-		"lan":game.ui.show_lan,"updates":game.ui.show_updates,"settings-info":func():game.ui.show_settings(3),
+		"lan":game.ui.show_lan,"online":game.ui.show_online,"updates":game.ui.show_updates,"settings-info":func():game.ui.show_settings(3),
 		"tactics":game.ui.show_equipped,"rules":game.ui.show_rules,"difficulty":game.ui.show_difficulty}
 	for key in screens:
 		screens[key].call()

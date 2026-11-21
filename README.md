@@ -40,6 +40,18 @@ godot --headless --fixed-fps 120 --script res://tests/lan_test.gd -- --lan-favor
 godot --script res://tests/mobile_test.gd
 ```
 
+## Partite online senza server
+
+Oltre alla LAN, Sestria offre partite online fra giocatori su reti diverse, anche dal browser. Non esiste un server di gioco né di proprietà del progetto: l’host è uno dei giocatori. Per trovarsi si usano tracker WebTorrent pubblici (solo segnalazione), poi la partita passa su un canale WebRTC diretto. Le stanze pubbliche compaiono in un elenco; le altre si aprono con un codice invito di otto caratteri. Il codice è in `scripts/online_link.gd`, l’innesto nella sessione in `scripts/lan_session.gd`. Le app native usano l’estensione `webrtc-native` 1.2.2 (`addons/`, licenze incluse); sul web WebRTC è integrato nel browser.
+
+Limiti noti: i tracker sono servizi pubblici di terzi senza garanzie; senza un relay TURN due reti molto restrittive (NAT simmetrico, CGNAT) possono non riuscire a collegarsi; i due giocatori vedono l’uno l’indirizzo IP dell’altro; l’elenco mostra al massimo sei stanze per ricerca.
+
+Collaudo locale, senza Internet, con un tracker di prova (`tools/mock_tracker.py`):
+
+```sh
+tools/run_online_test.sh /percorso/di/godot
+```
+
 I test separano statistiche e progressi di prova dai dati del giocatore. La LAN richiede il permesso di aprire socket locali. Gli script di collaudo Android sono esclusi dall’APK release.
 
 La chiave di firma Android resta in una cartella privata esclusa da Git. I nomi tecnici del package e alcuni identificativi di migrazione vengono conservati per permettere aggiornamenti compatibili e recuperare i salvataggi esistenti. Il nome pubblico del gioco è Sestria.

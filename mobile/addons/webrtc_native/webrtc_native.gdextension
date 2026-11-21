@@ -1,0 +1,14 @@
+[configuration]
+
+entry_symbol = "webrtc_extension_init"
+compatibility_minimum = 4.3
+
+exclude_tags = ["web", "no-webrtc"]
+
+[libraries]
+
+android.debug.arm64 = "lib/libwebrtc_native.android.template_debug.arm64.so"
+android.debug.x86_64 = "lib/libwebrtc_native.android.template_debug.x86_64.so"
+
+android.release.arm64 = "lib/libwebrtc_native.android.template_release.arm64.so"
+android.release.x86_64 = "lib/libwebrtc_native.android.template_release.x86_64.so"

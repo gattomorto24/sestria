@@ -1,4 +1,5 @@
 extends Control
+const OnlineLink = preload("res://scripts/online_link.gd")
 
 const Rules = preload("res://scripts/rules.gd")
 const Platform = preload("res://scripts/platform.gd")
@@ -55,6 +56,8 @@ var touch_tray: PanelContainer
 var primary_action: Button
 var action_callback := Callable()
 var lan_panel := false
+var online_panel := false
+var invite_text := ""
 var pass_panel := false
 var stats_panel := false
 var updates_panel := false
@@ -317,9 +320,10 @@ func fit_scroll(card: PanelContainer, scroll: ScrollContainer, body: VBoxContain
 	scroll.custom_minimum_size = Vector2(width-(44 if portrait else 44),minf(body.get_combined_minimum_size().y,room))
 
 func close_dialog(keep_pause := false) -> void:
-	if lan_panel and not keep_pause and game.lan and not game.lan.started:
+	if (lan_panel or online_panel) and not keep_pause and game.lan and not game.lan.started:
 		game.lan.close()
 	lan_panel = false
+	online_panel = false
 	pass_panel = false
 	stats_panel = false
 	updates_panel = false
@@ -919,6 +923,9 @@ func show_play_modes() -> void:
 	paragraph(body,"%s · Rivale %s · %d gettoni iniziali. Vittoria: %d XP." % [game.progression.TITLES[run.tier],TITLES[run.ai_level],run.enemy_gold,game.progression.victory_xp(run)],560)
 	button(body,"CONTINUA LA SAGA",game.prepare,0,true)
 	paragraph(body,"Vinci, sali di livello e ottieni 2 punti Pass a ogni avanzamento. I potenziamenti si attivano dalla prossima saga.",560)
+	if Platform.online_available():
+		button(body,"PARTITA ONLINE · ELENCO E INVITO",show_online)
+		paragraph(body,"Gioca contro persone di altre reti: scegli una stanza pubblica dall’elenco o entra con un codice invito. Nessun server di gioco e nessun account.",560)
 	if Platform.lan_available():
 		button(body,"SFIDA LAN · STESSA RETE",show_lan)
 		paragraph(body,"La LAN collega due computer o dispositivi sulla stessa rete. Regole standard, senza buff o ricompense XP. Nessun account obbligatorio, nessun server di gioco.",560)
@@ -1074,14 +1081,66 @@ func show_lan() -> void:
 	paragraph(body,"Se non vi vedete: controllate la rete, disattivate l’isolamento client del router oppure usate un hotspot. Non serve aprire porte su Internet.",580)
 	button(body,"Chiudi stanza" if session.role != "" else "Indietro",close_dialog)
 
+func show_online() -> void:
+	var body := modal("Partita online",640)
+	online_panel = true
+	var session: Node = game.lan
+	if session.role == "" and not session.active and session.online.role != "browse":
+		session.online_browse()
+	if lan_note != "":
+		paragraph(body,lan_note,600).add_theme_color_override("font_color",GOLD)
+		lan_note = ""
+	if session.role == "host":
+		label(body,"STANZA ONLINE APERTA",15,GOLD,true)
+		label(body,"Invito · "+OnlineLink.format_invite(session.invite_code),30,IVORY,true)
+		paragraph(body,session.status,600).add_theme_color_override("font_color",IVORY)
+		button(body,"COPIA IL CODICE INVITO",func():DisplayServer.clipboard_set(OnlineLink.format_invite(session.invite_code)))
+		if session.active:
+			button(body,"INIZIA LA SFIDA",session.start_match,0,true)
+	elif session.role == "guest":
+		paragraph(body,session.status,600).add_theme_color_override("font_color",IVORY)
+	else:
+		paragraph(body,"Crea una stanza e passa il codice invito a un amico, oppure rendila pubblica per farla comparire nell’elenco. Per entrare scegli una stanza o scrivi il codice invito.",600)
+		button(body,"CREA STANZA PUBBLICA",func():session.host_online(true),0,true)
+		button(body,"CREA STANZA CON INVITO",func():session.host_online(false))
+		var invite_input := LineEdit.new()
+		invite_input.placeholder_text = "Codice invito · es. K7QF-2M9X"
+		invite_input.max_length = 9
+		invite_input.text = invite_text
+		invite_input.custom_minimum_size.y = 45
+		invite_input.text_changed.connect(func(value:String):invite_text = value)
+		body.add_child(invite_input)
+		button(body,"ENTRA CON IL CODICE",func():session.join_online_invite(invite_input.text))
+		label(body,"STANZE ONLINE",15,GOLD,true)
+		var shown := 0
+		for id in session.online.rooms:
+			var entry: Dictionary = session.online.rooms[id]
+			shown += 1
+			if entry.free:
+				button(body,"ENTRA · "+entry.name,func():session.join_online_room(id),0,true)
+			else:
+				paragraph(body,entry.name+" · stanza piena",600)
+		if shown == 0:
+			paragraph(body,"Nessuna stanza pubblica trovata per ora. L’elenco si aggiorna da solo; puoi crearne una tu.",600)
+		button(body,"Cerca di nuovo",session.online.browse)
+	paragraph(body,"Il collegamento è diretto: l’altro giocatore può vedere il tuo indirizzo IP. Per trovarsi si usano tracker pubblici gratuiti di terzi; se non rispondono, la sfida LAN resta disponibile.",600)
+	button(body,"Chiudi stanza" if session.role != "" else "Indietro",close_dialog)
+
 func refresh_lan() -> void:
-	if lan_panel and not game.lan.started:
+	if game.lan.started:
+		return
+	if online_panel:
+		show_online()
+	elif lan_panel:
 		show_lan()
 
 func lan_problem(message: String) -> void:
 	lan_note = message
 	if game.phase == "menu":
-		show_lan()
+		if online_panel:
+			show_online()
+		else:
+			show_lan()
 
 func show_updates() -> void:
 	var update: Node = game.updater

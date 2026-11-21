@@ -50,3 +50,7 @@ godot --headless --script res://tests/updater_live_test.gd
 Il test scarica l’APK su disco e lo rimuove al termine; non sovrascrive un aggiornamento locale già presente. La verifica della firma è coperta separatamente dal collaudo nativo Android in `mobile/tests/native/`. I test non sono inclusi nell’APK release.
 
 Le nuove release possono essere caricate manualmente da GitHub: GitHub Actions non è richiesto per gli aggiornamenti sui telefoni. Il workflow di verifica nel repository è facoltativo e si avvia manualmente.
+
+## Partite online
+
+Prima di ogni release eseguire `tools/run_online_test.sh` (elenco, invito, partita completa su WebRTC e dati ostili) e, per le app native, controllare che le librerie di `addons/webrtc_native` e `mobile/addons/webrtc_native` siano presenti: senza l’estensione la modalità online sparisce dai menu. Su Windows la DLL `libwebrtc_native…dll` viaggia accanto a `Sestria.exe` (lo script `tools/export_desktop.sh` la include). Su Android la release include le librerie arm64-v8a; i telefoni a 32 bit non vedono la modalità online.
