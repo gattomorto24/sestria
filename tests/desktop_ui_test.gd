@@ -50,6 +50,19 @@ func run() -> void:
 		inside(game.ui.dialog.find_children("*","PanelContainer",true,false)[0],"Finestra "+key)
 		game.ui.close_dialog()
 	check(game.lan.role=="","Chiudere la LAN rilascia la stanza")
+	# Aggiornamento dei contenuti: "Aggiorna", poi "Riavvia per applicare"; pacchetto completo: Download.
+	var up: Node = game.updater
+	for case in [["available","content","AGGIORNA"],["available","package","SCARICA PACCHETTO COMPLETO"],["ready","content","RIAVVIA PER APPLICARE"],["ready","package","MOSTRA NELLA CARTELLA DOWNLOAD"]]:
+		up.state = case[0]
+		up.release = {"mode":case[1],"version":"9.9","notes":"","page":"","name":"x"}
+		game.ui.show_updates()
+		await settle()
+		var found: Array = game.ui.dialog.find_children("*","Button",true,false).filter(func(b):return b.text==case[2])
+		check(found.size()==1,"Pulsante «%s» per %s/%s" % [case[2],case[0],case[1]])
+		inside(game.ui.dialog.find_children("*","PanelContainer",true,false)[0],"Finestra aggiornamenti "+case[2])
+		game.ui.close_dialog()
+	up.state = "idle"
+	up.release = {}
 	# Una stanza trovata in rete si apre con un solo clic, senza digitare il codice.
 	game.lan.rooms["192.168.1.9"] = {"ip":"192.168.1.9","name":"Prova","code":"123456","seen":Time.get_ticks_msec()}
 	game.lan.rooms["192.168.1.10"] = {"ip":"192.168.1.10","name":"Vecchia","code":"","seen":Time.get_ticks_msec()}

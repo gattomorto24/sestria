@@ -35,9 +35,7 @@ In **Opzioni → Diagnostica locale** puoi copiare modello, versione Android, ul
 
 ## Aggiornamenti
 
-**Opzioni → Aggiornamenti → Verifica nuovi aggiornamenti** consulta `gattomorto24/sestria` su GitHub Releases. L’app ignora bozze e prerelease, confronta semanticamente le versioni e seleziona l’APK universale di Sestria. Il download va su disco, può essere annullato ed è verificato con il digest SHA-256 restituito da GitHub. Il ponte Android controlla anche package, firma, versione e compatibilità prima di aprire l’installatore.
-
-Android può chiedere di consentire gli aggiornamenti da Sestria nelle proprie impostazioni. Dopo aver abilitato il permesso, torna all’app e premi Installa. L’installazione finale richiede sempre la tua conferma. Se hai una partita aperta, il pulsante Installa è disponibile dopo il ritorno al menu.
+**Opzioni → Aggiornamenti → Verifica nuovi aggiornamenti** consulta `gattomorto24/sestria` su GitHub Releases. L’app ignora bozze e prerelease e confronta semanticamente le versioni. Se la release ha un pacchetto contenuti Android firmato e compatibile con l’app installata, **Aggiorna** lo scarica (con avanzamento), ne verifica firma del manifest, SHA-256 e motore e lo registra; **Riavvia per applicare** riavvia l’app, che monta il pacchetto prima di caricare il gioco: nessun APK da installare. Se il pacchetto è corrotto o non si carica, l’app torna ai file integrati da sola. Se la versione cambia anche il motore o il codice nativo, o manca il pacchetto, l’app lo spiega e seleziona l’APK universale: il download è verificato con il digest SHA-256 di GitHub, il ponte Android controlla package, firma, versione e compatibilità prima dell’installatore e la conferma finale spetta ad Android (può chiedere di consentire gli aggiornamenti da Sestria; poi torna all’app e premi Installa). Dettagli, limiti e sicurezza in [docs/releases.md](../docs/releases.md). Con una partita aperta, il riavvio e l’installazione sono disponibili dopo il ritorno al menu.
 
 ## Dati e account
 

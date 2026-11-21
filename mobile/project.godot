@@ -5,6 +5,7 @@ config/name="Sestria"
 run/main_scene="res://scenes/boot.tscn"
 run/main_scene.android_smoke="res://tests/android_checks.tscn"
 run/main_scene.android_lan_smoke="res://tests/android_network.tscn"
+run/main_scene.android_content_smoke="res://tests/content_android.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://assets/icons/app_icon.svg"
 config/quit_on_go_back=false

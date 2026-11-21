@@ -391,7 +391,7 @@ Esc · Chiudi il pannello o lascia il tavolo",500)
 		3:
 			if game.updater:
 				label(body,"SESTRIA · VERSIONE "+game.updater.current_version,17,GOLD,true)
-				paragraph(body,"Gli aggiornamenti provengono dalle release pubbliche di GitHub. Il pacchetto scaricato viene verificato con SHA-256 prima di essere mostrato.",500)
+				paragraph(body,"Gli aggiornamenti provengono dalle release pubbliche di GitHub e si applicano dall’app: firma e SHA-256 vengono verificate prima del riavvio.",500)
 				button(body,"AGGIORNAMENTI",show_updates,0,true)
 				button(body,"Apri le release su GitHub",func():OS.shell_open(game.updater.RELEASES))
 			else:
@@ -1102,14 +1102,22 @@ func show_updates() -> void:
 		label(body,"NUOVA VERSIONE · "+str(update.release.version),17,MINT,true)
 		if not str(update.release.notes).is_empty():
 			paragraph(body,str(update.release.notes),580)
-		button(body,"SCARICA AGGIORNAMENTO",update.download_update,0,true)
+		if update.release.get("mode","package")=="content":
+			button(body,"AGGIORNA",update.download_update,0,true)
+		else:
+			button(body,"SCARICA PACCHETTO COMPLETO",update.download_update,0,true)
 	elif update.state == "ready":
-		button(body,"MOSTRA NELLA CARTELLA DOWNLOAD",update.reveal_update,0,true)
+		if update.release.get("mode","package")=="content":
+			if game.phase != "menu":
+				paragraph(body,"Il riavvio chiude la partita in corso.",580)
+			button(body,"RIAVVIA PER APPLICARE",update.restart_to_apply,0,true)
+		else:
+			button(body,"MOSTRA NELLA CARTELLA DOWNLOAD",update.reveal_update,0,true)
 	elif update.state in ["checking","downloading"]:
 		button(body,"Annulla",update.cancel)
 	elif update.state != "verifying":
 		button(body,"VERIFICA NUOVI AGGIORNAMENTI",update.check_updates,0,true)
-	paragraph(body,"Gli aggiornamenti provengono dalle release pubbliche di GitHub. Il pacchetto viene scaricato in Download dopo il controllo SHA-256; sostituisci poi l’app manualmente.",580)
+	paragraph(body,"Gli aggiornamenti provengono dalle release pubbliche di GitHub. Premi Aggiorna: l’app scarica i nuovi contenuti, ne controlla firma e SHA-256 e li applica al riavvio. Se una versione cambia anche il motore, si scarica il pacchetto completo in Download e lo si sostituisce a mano.",580)
 	button(body,"Apri le release su GitHub",func():OS.shell_open(update.RELEASES))
 	if not update.last_checked.is_empty():
 		paragraph(body,"Ultima verifica · "+update.last_checked,580)

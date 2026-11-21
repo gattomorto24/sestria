@@ -11,4 +11,4 @@ di sviluppatore non identificato. Se il sistema blocca l’app, apri Terminale e
   xattr -dr com.apple.quarantine /Applications/Sestria.app
 
 Controlli: clic sinistro seleziona, clic destro ispeziona un dado, Spazio o Invio avanza, Esc apre il menu.
-Gli aggiornamenti sono in Impostazioni > Info. Verifica sempre la SHA-256 con SHA256SUMS.txt.
+Gli aggiornamenti sono in Impostazioni > Info: Aggiorna, poi Riavvia per applicare. Se serve il pacchetto completo, verifica la SHA-256 con SHA256SUMS.txt.

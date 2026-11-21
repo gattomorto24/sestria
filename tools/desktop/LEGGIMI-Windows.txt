@@ -11,4 +11,4 @@ al primo avvio. Scegli Ulteriori informazioni > Esegui comunque solo se hai scar
 dalla pagina ufficiale delle release e la SHA-256 coincide con SHA256SUMS.txt.
 
 Controlli: clic sinistro seleziona, clic destro ispeziona un dado, Spazio o Invio avanza, Esc apre il menu.
-Gli aggiornamenti sono in Impostazioni > Info: l’app scarica il nuovo pacchetto in Download e ne verifica la SHA-256.
+Gli aggiornamenti sono in Impostazioni > Info: Aggiorna, poi Riavvia per applicare. Se la versione cambia anche il motore, l’app scarica il pacchetto completo in Download e ne verifica la SHA-256.

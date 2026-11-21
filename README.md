@@ -15,9 +15,9 @@
 - Sfida un amico sulla stessa rete Wi-Fi o hotspot: le stanze vicine compaiono da sole e basta toccare Entra, senza codice. Nessun server di gioco o account obbligatorio.
 - Collega facoltativamente un profilo Google; i progressi restano sul dispositivo.
 
-Su computer il tavolo resta in orizzontale: clic sinistro per selezionare, clic destro per ispezionare le sei facce, Spazio o Invio per avanzare, Esc per il menu. Statistiche, Pass e LAN sono nel menu principale; gli aggiornamenti in **Impostazioni → Info**. I pacchetti Mac e Windows non sono notarizzati né firmati con un certificato commerciale: il sistema operativo può mostrare un avviso al primo avvio. L’app verifica la SHA-256 del nuovo pacchetto e lo salva in Download, ma non sostituisce mai se stessa.
+Su computer il tavolo resta in orizzontale: clic sinistro per selezionare, clic destro per ispezionare le sei facce, Spazio o Invio per avanzare, Esc per il menu. Statistiche, Pass e LAN sono nel menu principale; gli aggiornamenti in **Impostazioni → Info**. I pacchetti Mac e Windows non sono notarizzati né firmati con un certificato commerciale: il sistema operativo può mostrare un avviso al primo avvio. Gli aggiornamenti dei contenuti si applicano dall’app (Aggiorna, poi Riavvia per applicare); se una versione cambia anche il motore, l’app salva il pacchetto completo in Download e lo si sostituisce a mano.
 
-Da **Opzioni → Aggiornamenti → Verifica nuovi aggiornamenti** l’app consulta le release pubbliche di questo repository. Prima di proporre l’installazione verifica SHA-256, identificativo dell’app, versione e firma. Android chiede la conferma finale. Nessun token GitHub o segreto di firma viene distribuito con l’app.
+Da **Opzioni → Aggiornamenti → Verifica nuovi aggiornamenti** l’app consulta le release pubbliche di questo repository. Se la release ha un pacchetto contenuti firmato compatibile, lo scarica, ne verifica firma e SHA-256 e lo applica al riavvio, senza installare nulla; altrimenti propone il pacchetto completo e verifica SHA-256, identificativo dell’app, versione e firma (Android chiede la conferma finale). Nessun token GitHub o segreto di firma viene distribuito con l’app.
 
 ## Progetto
 

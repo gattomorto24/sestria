@@ -1,10 +1,22 @@
 extends Control
+const Content = preload("res://scripts/content_pack.gd")
 const SCENE := "res://scenes/table.tscn"
 var progress_bar: ProgressBar
 var status: Label
 var ready_at := 0
 var failed := false
 func _ready() -> void:
+	# Prima di caricare il gioco: monta l'eventuale pacchetto contenuti già verificato (vedi content_pack.gd).
+	var content_status := Content.apply_at_boot("--no-content-pack" in OS.get_cmdline_user_args())
+	if content_status=="applied":
+		var broken := Content.validate_loaded()
+		if not broken.is_empty():
+			push_warning("SESTRIA content: non si carica "+broken)
+			Content.reject_after_failed_boot()
+			content_status="restart"
+	if content_status=="restart":
+		recover_from_content()
+		return
 	var bg := ColorRect.new()
 	bg.color = Color("#071316")
 	add_child(bg)
@@ -52,6 +64,10 @@ func _process(_delta: float) -> void:
 	if not progress.is_empty():
 		progress_bar.value = float(progress[0])*90
 	if state == ResourceLoader.THREAD_LOAD_FAILED:
+		if Content.boot_status=="applied":
+			Content.reject_after_failed_boot()
+			recover_from_content()
+			return
 		failed = true
 		status.text = "Avvio non riuscito. Tocca per riprovare."
 		return
@@ -64,6 +80,7 @@ func _process(_delta: float) -> void:
 		get_tree().root.add_child(game)
 		get_tree().current_scene = game
 		move_to_front()
+		Content.confirm_when_running(get_tree())
 		await get_tree().process_frame
 		await get_tree().process_frame
 		progress_bar.value = 100
@@ -71,6 +88,13 @@ func _process(_delta: float) -> void:
 		fade.tween_property(self,"modulate:a",0,.25)
 		await fade.finished
 		queue_free()
+# Il pacchetto contenuti non funziona: è già stato scartato; si riavvia l'app con i file integrati.
+func recover_from_content() -> void:
+	failed = true
+	push_warning("SESTRIA content: "+Content.boot_note)
+	if not Content.restart(get_tree()):
+		get_tree().quit(1)
+
 func _gui_input(event: InputEvent) -> void:
 	if failed and ((event is InputEventScreenTouch and event.pressed) or (event is InputEventMouseButton and event.pressed)):
 		get_tree().reload_current_scene()

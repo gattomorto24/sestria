@@ -998,17 +998,24 @@ func show_updates() -> void:
 		text(body,"NUOVA VERSIONE · "+str(update.release.version),24,MINT)
 		if not str(update.release.notes).is_empty():
 			text(body,str(update.release.notes),24)
-		button(body,"SCARICA AGGIORNAMENTO",update.download_update,true)
-	elif update.state=="ready":
-		if game.phase in ["menu","end"]:
-			button(body,"INSTALLA AGGIORNAMENTO",update.install_update,true)
+		if update.release.get("mode","package")=="content":
+			button(body,"AGGIORNA",update.download_update,true)
 		else:
-			text(body,"Torna al menu dopo la partita per installare l’aggiornamento.",25)
+			button(body,"SCARICA APK COMPLETO",update.download_update,true)
+	elif update.state=="ready":
+		var content_mode: bool=update.release.get("mode","package")=="content"
+		if game.phase in ["menu","end"]:
+			if content_mode:
+				button(body,"RIAVVIA PER APPLICARE",update.restart_to_apply,true)
+			else:
+				button(body,"INSTALLA AGGIORNAMENTO",update.install_update,true)
+		else:
+			text(body,"Torna al menu dopo la partita per applicare l’aggiornamento.",25)
 	elif update.state in ["checking","downloading"]:
 		button(body,"Annulla",update.cancel)
 	elif update.state!="verifying":
 		button(body,"VERIFICA NUOVI AGGIORNAMENTI",update.check_updates,true)
-	text(body,"Gli aggiornamenti provengono dalle release pubbliche di GitHub. Prima dell’installazione controlliamo integrità, versione e firma. La conferma finale viene richiesta da Android.",24)
+	text(body,"Gli aggiornamenti provengono dalle release pubbliche di GitHub. Tocca Aggiorna: l’app scarica i nuovi contenuti, ne controlla firma e SHA-256 e li applica al riavvio, senza installare nulla. Se una versione cambia anche il motore, serve l’APK completo e la conferma di Android.",24)
 	button(body,"Apri le release su GitHub",func():OS.shell_open(update.RELEASES))
 	if not update.last_checked.is_empty():
 		text(body,"Ultima verifica · "+update.last_checked,22)

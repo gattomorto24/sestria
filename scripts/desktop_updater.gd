@@ -1,14 +1,17 @@
 extends Node
-# Aggiornamenti desktop: legge le release pubbliche di GitHub, scarica il pacchetto
-# della propria piattaforma, ne verifica la SHA-256 e lo mostra nella cartella Download.
-# L'installazione resta manuale: l'app non sostituisce mai se stessa.
+# Aggiornamenti desktop. Legge le release pubbliche di GitHub e, se la release ha un pacchetto contenuti firmato
+# compatibile con questa app, lo scarica, lo verifica e lo applica al riavvio successivo (modo "content").
+# Altrimenti ripiega sul pacchetto completo della piattaforma: SHA-256 verificata, salvato in Download,
+# installazione manuale (modo "package"). Il pacchetto contenuti non cambia motore né codice nativo.
 signal changed
+const Content = preload("res://scripts/content_pack.gd")
 const REPOSITORY := "gattomorto24/sestria"
 const RELEASES := "https://github.com/"+REPOSITORY+"/releases"
 const API := "https://api.github.com/repos/"+REPOSITORY+"/releases/latest"
 const MAX_PACKAGE := 600*1024*1024
 const FALLBACK_VERSION := "4.5"
 var current_version := FALLBACK_VERSION
+var base_version := FALLBACK_VERSION
 var state := "idle"
 var message := "Cerca le nuove versioni pubblicate su GitHub."
 var release := {}
@@ -18,12 +21,33 @@ var saved_path := ""
 var request: HTTPRequest
 var progress_clock := 0.0
 var download_dir := ""
+var step := ""
+var api := API
+var releases := RELEASES
+var pending_info := {}
+var pending_manifest := {}
+var fallback_reason := ""
 
 func _ready() -> void:
 	process_mode=Node.PROCESS_MODE_ALWAYS
 	var configured := str(ProjectSettings.get_setting("application/config/version",""))
 	if not version_parts(configured).is_empty():
 		current_version=configured
+	base_version=Content.base_version()
+	if Content.running_version()!="0.0":
+		current_version=Content.running_version()
+	if OS.is_debug_build():
+		# Solo nelle build di sviluppo: un server di prova al posto di GitHub (tests/content_update_e2e.gd).
+		if not OS.get_environment("SESTRIA_UPDATE_API").is_empty():
+			api=OS.get_environment("SESTRIA_UPDATE_API")
+		if not OS.get_environment("SESTRIA_UPDATE_RELEASES").is_empty():
+			releases=OS.get_environment("SESTRIA_UPDATE_RELEASES")
+	var staged := Content.staged_version()
+	if not staged.is_empty():
+		state="ready"
+		progress=1
+		release={"mode":"content","version":staged}
+		message="Sestria %s è già scaricato e verificato. Riavvia l’app per applicarlo." % staged
 	download_dir=OS.get_system_dir(OS.SYSTEM_DIR_DOWNLOADS)
 	request=HTTPRequest.new()
 	request.use_threads=true
@@ -59,7 +83,7 @@ static func newer(candidate: String, installed: String) -> bool:
 			return a[i]>b[i]
 	return false
 
-static func parse_release(info: Dictionary, installed: String, suffix: String) -> Dictionary:
+static func parse_release(info: Dictionary, installed: String, suffix: String, base_url := RELEASES) -> Dictionary:
 	if suffix.is_empty() or info.get("draft",true) or info.get("prerelease",true):
 		return {}
 	var tag := str(info.get("tag_name",""))
@@ -78,28 +102,32 @@ static func parse_release(info: Dictionary, installed: String, suffix: String) -
 			continue
 		if name.contains("/") or name.contains("\\") or name.contains(".."):
 			continue
-		if not url.begins_with(RELEASES+"/download/"+tag+"/") or bytes<=0 or bytes>MAX_PACKAGE or not digest.begins_with("sha256:"):
+		if not url.begins_with(base_url+"/download/"+tag+"/") or bytes<=0 or bytes>MAX_PACKAGE or not digest.begins_with("sha256:"):
 			continue
 		var sha := digest.trim_prefix("sha256:").to_lower()
 		var pattern := RegEx.new()
 		pattern.compile("^[0-9a-f]{64}$")
 		if not pattern.search(sha):
 			continue
-		return {"version":tag.trim_prefix("v"),"name":name,"url":url,"sha256":sha,"size":bytes,"notes":str(info.get("body","")).left(6000),"page":RELEASES+"/tag/"+tag}
+		return {"version":tag.trim_prefix("v"),"name":name,"url":url,"sha256":sha,"size":bytes,"notes":str(info.get("body","")).left(6000),"page":base_url+"/tag/"+tag,"mode":"package"}
 	return {}
 
 func check_updates() -> void:
 	if state in ["checking","downloading","verifying"]:
 		return
 	release={}
+	pending_info={}
+	pending_manifest={}
+	fallback_reason=""
 	state="checking"
+	step="api"
 	message="Controllo delle release su GitHub…"
 	progress=0
 	request.download_file=""
 	request.timeout=25
 	request.body_size_limit=2*1024*1024
 	changed.emit()
-	var error := request.request(API,PackedStringArray(["Accept: application/vnd.github+json","User-Agent: Sestria-Desktop/"+current_version,"X-GitHub-Api-Version: 2022-11-28"]))
+	var error := request.request(api,PackedStringArray(["Accept: application/vnd.github+json","User-Agent: Sestria-Desktop/"+current_version,"X-GitHub-Api-Version: 2022-11-28"]))
 	if error != OK:
 		fail("Impossibile avviare la verifica. Controlla la connessione e riprova.")
 
@@ -112,10 +140,26 @@ func final_path() -> String:
 func download_update() -> void:
 	if state!="available" or release.is_empty():
 		return
+	if release.get("mode","package")=="content":
+		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(Content.dir))
+		Content.remove_file(Content.part_path(str(release.name)))
+		request.download_file=Content.part_path(str(release.name))
+		request.timeout=600
+		request.body_size_limit=int(release.size)+1024
+		step="pack"
+		state="downloading"
+		message="Download dell’aggiornamento…"
+		progress=0
+		changed.emit()
+		var content_error := request.request(str(release.url),PackedStringArray(["User-Agent: Sestria-Desktop/"+current_version,"Accept-Encoding: identity"]))
+		if content_error != OK:
+			fail("Download non avviato. Riprova più tardi.")
+		return
 	if download_dir.is_empty() or not DirAccess.dir_exists_absolute(download_dir):
 		OS.shell_open(str(release.page))
 		return
 	remove_file(part_path())
+	step="package"
 	state="downloading"
 	message="Download da GitHub…"
 	progress=0
@@ -137,7 +181,9 @@ func _process(delta: float) -> void:
 			changed.emit()
 
 func completed(result: int, code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
-	if state=="checking":
+	if state=="checking" and step=="manifest":
+		manifest_received(result,code,body)
+	elif state=="checking":
 		last_checked=Time.get_datetime_string_from_system().replace("T"," ")
 		if result!=HTTPRequest.RESULT_SUCCESS:
 			fail("GitHub non raggiungibile. Controlla Internet e riprova.")
@@ -154,17 +200,47 @@ func completed(result: int, code: int, _headers: PackedStringArray, body: Packed
 			if not info is Dictionary or version_parts(str(info.get("tag_name",""))).is_empty():
 				fail("La release non contiene una versione valida.")
 				return
-			release=parse_release(info,current_version,platform_suffix())
 			if not newer(str(info.tag_name),current_version):
 				state="current"
 				message="Sestria è aggiornato. Versione "+current_version
-			elif release.is_empty():
-				fail("È presente una nuova release, ma il pacchetto verificabile per questo sistema non è ancora pronto.")
+				changed.emit()
 				return
-			else:
-				state="available"
-				message="Sestria "+str(release.version)+" è disponibile."
-			changed.emit()
+			pending_info=info
+			var tag := str(info.tag_name)
+			var staged := Content.staged_version()
+			if not staged.is_empty() and not newer(tag,staged):
+				state="ready"
+				progress=1
+				release={"mode":"content","version":staged}
+				message="Sestria %s è già scaricato e verificato. Riavvia l’app per applicarlo." % staged
+				changed.emit()
+				return
+			var manifest_asset := Content.find_asset(info,Content.manifest_name(tag.trim_prefix("v")),releases,tag) if not Content.platform_key().is_empty() else {}
+			if manifest_asset.is_empty() or int(manifest_asset.size)>Content.MAX_MANIFEST:
+				offer_package("Questa versione non include un aggiornamento dei contenuti.")
+				return
+			step="manifest"
+			request.body_size_limit=Content.MAX_MANIFEST*2
+			var error := request.request(str(manifest_asset.url),PackedStringArray(["User-Agent: Sestria-Desktop/"+current_version,"Accept-Encoding: identity"]))
+			if error != OK:
+				offer_package("Impossibile leggere il manifest dell’aggiornamento.")
+	elif state=="downloading" and step=="pack":
+		if result!=HTTPRequest.RESULT_SUCCESS or code!=200:
+			Content.remove_file(Content.part_path(str(release.name)))
+			fail("Download interrotto. Premi Verifica per riprovare.")
+			return
+		state="verifying"
+		message="Verifica firma e integrità dell’aggiornamento…"
+		changed.emit()
+		await get_tree().process_frame
+		var reason := Content.install_downloaded(Content.part_path(str(release.name)),pending_manifest,release.pack,str(release.get("digest","")))
+		if not reason.is_empty():
+			fail(reason)
+			return
+		state="ready"
+		progress=1
+		message="Aggiornamento %s scaricato e verificato. Riavvia Sestria per applicarlo: i tuoi progressi restano al loro posto." % str(release.version)
+		changed.emit()
 	elif state=="downloading":
 		if result!=HTTPRequest.RESULT_SUCCESS or code!=200:
 			remove_file(part_path())
@@ -195,6 +271,57 @@ func completed(result: int, code: int, _headers: PackedStringArray, body: Packed
 		message="Pacchetto verificato e salvato in Download. Chiudi Sestria, estrai l’archivio e sostituisci la versione installata."
 		changed.emit()
 
+# Risposta del manifest firmato: se è valido e compatibile si offre l'aggiornamento dei contenuti.
+func manifest_received(result: int, code: int, body: PackedByteArray) -> void:
+	if result!=HTTPRequest.RESULT_SUCCESS or code!=200:
+		offer_package("Il manifest dell’aggiornamento non è raggiungibile.")
+		return
+	var verdict := Content.verify_manifest(body.get_string_from_utf8())
+	if not verdict.ok:
+		offer_package(str(verdict.error))
+		return
+	var manifest: Dictionary = verdict.manifest
+	var tag := str(pending_info.tag_name)
+	var entry := Content.pack_entry(manifest)
+	if str(manifest.version)!=tag.trim_prefix("v") or entry.is_empty():
+		offer_package("Il manifest non descrive un pacchetto per questo sistema.")
+		return
+	if str(manifest.version) in Content.rejected_versions():
+		offer_package("Su questo computer l’aggiornamento dei contenuti non è riuscito.")
+		return
+	var incompatible := Content.incompatibility(manifest,entry,base_version)
+	if not incompatible.is_empty():
+		offer_package(incompatible)
+		return
+	var asset := Content.find_asset(pending_info,str(entry.name),releases,tag)
+	if asset.is_empty() or int(asset.size)!=int(entry.size) or (not str(asset.digest).is_empty() and str(asset.digest)!=str(entry.sha256)):
+		offer_package("Il pacchetto dei contenuti non è ancora pronto su GitHub.")
+		return
+	pending_manifest=manifest
+	release={"mode":"content","version":str(manifest.version),"name":str(entry.name),"url":str(asset.url),"sha256":str(entry.sha256),"digest":str(asset.digest),"size":int(entry.size),"pack":entry,"notes":str(pending_info.get("body","")).left(6000),"page":releases+"/tag/"+tag}
+	state="available"
+	message="Sestria %s è disponibile. L’aggiornamento è piccolo e si applica da solo al riavvio." % str(release.version)
+	changed.emit()
+
+# Nessun pacchetto contenuti utilizzabile: si propone il pacchetto completo e si spiega perché.
+func offer_package(reason: String) -> void:
+	fallback_reason=reason
+	release=parse_release(pending_info,current_version,platform_suffix(),releases)
+	if release.is_empty():
+		fail("È presente una nuova release, ma il pacchetto verificabile per questo sistema non è ancora pronto.")
+		return
+	state="available"
+	message="Sestria %s è disponibile come pacchetto completo. %s" % [str(release.version),reason]
+	changed.emit()
+
+# Applica l'aggiornamento già scaricato: riavvia l'app, e al nuovo avvio boot.gd monta il pacchetto.
+func restart_to_apply() -> void:
+	if state!="ready" or release.get("mode","")!="content":
+		return
+	if not Content.restart(get_tree()):
+		message="Non riesco a riavviare da solo: chiudi e riapri Sestria per applicare l’aggiornamento."
+		changed.emit()
+
 func reveal_update() -> void:
 	if state=="ready" and not saved_path.is_empty():
 		OS.shell_show_in_file_manager(saved_path)
@@ -203,7 +330,10 @@ func cancel() -> void:
 	if state in ["checking","downloading"]:
 		request.cancel_request()
 		if state=="downloading":
-			remove_file(part_path())
+			if step=="pack":
+				Content.remove_file(Content.part_path(str(release.name)))
+			else:
+				remove_file(part_path())
 		state="idle"
 		message="Operazione annullata."
 		changed.emit()

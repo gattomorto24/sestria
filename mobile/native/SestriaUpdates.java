@@ -53,6 +53,18 @@ public final class SestriaUpdates extends GodotPlugin {
             return "";
         } catch(Exception error) { return "Impossibile verificare l’APK. Scaricalo nuovamente."; }
     }
+    /** Restarts the app in a fresh process so the next start mounts a downloaded content pack. */
+    @UsedByGodot public boolean restartApp() {
+        Activity activity=getActivity();
+        if(activity==null) return false;
+        Intent launch=activity.getPackageManager().getLaunchIntentForPackage(activity.getPackageName());
+        if(launch==null) return false;
+        launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        Intent phoenix=new Intent(activity,SestriaRestartActivity.class)
+            .putExtra(SestriaRestartActivity.TARGET,launch).putExtra(SestriaRestartActivity.PID,android.os.Process.myPid());
+        activity.runOnUiThread(()->activity.startActivity(phoenix));
+        return true;
+    }
     @UsedByGodot public String installUpdate(String path,String expectedVersion) {
         String error=validateUpdate(path,expectedVersion);
         if(!error.isEmpty()) return error;
