@@ -4,6 +4,8 @@ const Rules = preload("res://scripts/rules.gd")
 var rng := RandomNumberGenerator.new()
 var level := 1
 var trials_extra := 0
+var aggression_bias := 1.0     # stile del bot: >1 più aggressivo
+var pressure_bias := 1.0       # stile del bot: >1 più prudente
 
 func score(match_rules: RefCounted, side: int, mine: Array, enemy: Array) -> float:
 	var a := [0,0,0,0,0]
@@ -17,8 +19,8 @@ func score(match_rules: RefCounted, side: int, mine: Array, enemy: Array) -> flo
 		b[d.kind] += 1
 		their_gold += int(d.gold)
 	var other := 1-side
-	var pressure := 1.15 + 3.4 / maxf(2.0,match_rules.hp[side])
-	var aggression := 1.1 + 3.1 / maxf(2.0,match_rules.hp[other])
+	var pressure := (1.15 + 3.4 / maxf(2.0,match_rules.hp[side]))*pressure_bias
+	var aggression := (1.1 + 3.1 / maxf(2.0,match_rules.hp[other]))*aggression_bias
 	var opposing_gold: int = match_rules.gold[other] + their_gold
 	var attack := maxi(0,a[0]-b[2])+maxi(0,a[1]-b[3])
 	var hurt := maxi(0,b[0]-a[2])+maxi(0,b[1]-a[3])

@@ -41,6 +41,12 @@ var campaigns: RefCounted           # campagne salvate
 var friends: RefCounted             # amici (4.8)
 var active_campaign := ""           # id della campagna in corso ("" = partita al volo)
 var match_setup := {}               # parametri della partita di campagna in corso
+var max_throws := 3                 # lanci per manche (campagna: 2 o 3)
+var speed_factor := 1.0             # velocità delle animazioni (campagna: veloce)
+var log_detail := true              # cronaca dettagliata dei colpi
+var bot_loadout: Array = []         # tattiche del bot nella partita in corso
+var forced_first := -1              # chi inizia se non si tira la moneta (0 tu, 1 bot)
+var hints_on := false               # suggerimenti: pre-seleziona i dadi consigliati
 var music_volume := .51
 var effects_volume := .74
 var camera_goal := MENU_CAMERA
@@ -346,6 +352,57 @@ func start_quick() -> void:
 	match_setup = {}
 	prepare()
 
+# Applica le impostazioni della campagna (o i valori predefiniti) alla partita che sta per iniziare.
+func apply_match_setup() -> void:
+	max_throws = 3
+	speed_factor = 1.0
+	log_detail = true
+	forced_first = -1
+	hints_on = false
+	opponent.aggression_bias = 1.0
+	opponent.pressure_bias = 1.0
+	if match_setup.is_empty() or integration or (lan and lan.started):
+		return
+	saga_run.ai_level = int(match_setup.ai_level)
+	saga_run.trials_extra = int(match_setup.trials_extra)
+	saga_run.enemy_gold = int(match_setup.enemy_gold)
+	saga_run.player_gold = int(match_setup.player_gold)
+	saga_run.xp_multiplier = CampaignStore.xp_multiplier(campaigns.campaigns[campaigns.find(active_campaign)].settings) if campaigns.find(active_campaign) >= 0 else 1.0
+	saga_run.difficulty = int(match_setup.difficulty)
+	saga_run.tier = int(match_setup.tier)
+	max_throws = int(match_setup.throws)
+	speed_factor = .6 if match_setup.speed == "fast" else 1.0
+	log_detail = match_setup.log != "brief"
+	hints_on = bool(match_setup.hints)
+	forced_first = {"player":0,"bot":1}.get(str(match_setup.first),-1)
+	match str(match_setup.style):
+		"aggressive":
+			opponent.aggression_bias = 1.25
+			opponent.pressure_bias = .85
+		"cautious":
+			opponent.aggression_bias = .8
+			opponent.pressure_bias = 1.25
+	if int(match_setup.seed) > 0:
+		samples.seed = int(match_setup.seed)
+		rules.rng.seed = int(match_setup.seed)+1
+		opponent.rng.seed = int(match_setup.seed)+2
+
+func pick_bot_loadout() -> Array:
+	var mode: String = str(match_setup.get("tactics","tier")) if not match_setup.is_empty() and not integration else "tier"
+	if mode == "mirror":
+		return equipped.duplicate()
+	if mode == "random":
+		var ids: Array = Rules.FAVOR.keys()
+		var picked: Array = []
+		var chooser := RandomNumberGenerator.new()
+		chooser.seed = int(match_setup.get("seed",0)) if int(match_setup.get("seed",0)) > 0 else randi()
+		while picked.size() < 3:
+			var id: String = ids[chooser.randi_range(0,ids.size()-1)]
+			if not picked.has(id):
+				picked.append(id)
+		return picked
+	return AI_SETS[saga_difficulty].duplicate()
+
 func prepare() -> void:
 	if lan and lan.is_guest():
 		return
@@ -361,20 +418,25 @@ func prepare() -> void:
 	# Existing automated matches keep a reproducible, unmodified baseline.
 	if integration and not (lan and lan.started):
 		saga_run = {"enabled":false,"ai_level":difficulty,"trials_extra":0}
+	apply_match_setup()
 	saga_notice = ""
 	saga_difficulty = int(saga_run.ai_level)
 	opponent.level = saga_difficulty
 	opponent.trials_extra = int(saga_run.trials_extra)
+	bot_loadout = pick_bot_loadout()
 	camera_goal = GAME_CAMERA
 	look_goal = MATCH_TARGET
 	phase = "coin"
-	table.set_figures([equipped,lan.peer_loadout if lan and lan.started else AI_SETS[saga_difficulty]])
+	table.set_figures([equipped,lan.peer_loadout if lan and lan.started else bot_loadout])
 	table.update_counters([15,15],[0,0],0)
 	for side in 2:
 		rack(side)
 	ui.match_layout()
 	ui.stats([15,15],[0,0], 1, 0)
-	ui.coin_prompt()
+	if forced_first >= 0:
+		toss.call_deferred(0)
+	else:
+		ui.coin_prompt()
 
 func toss(guess: int) -> void:
 	if phase != "coin":
@@ -382,6 +444,8 @@ func toss(guess: int) -> void:
 	var ticket := generation
 	phase = "busy"
 	var winner := 0 if samples.randi_range(0,1) == guess else 1
+	if forced_first >= 0:
+		winner = forced_first
 	rules.reset(winner)
 	table.update_counters(rules.hp,rules.gold,winner)
 	var flip := create_tween()
@@ -447,7 +511,7 @@ func roll() -> void:
 	attempts[side] += 1
 	camera_goal = GAME_CAMERA * .965
 	look_goal = MATCH_TARGET.lerp(Vector3(0,0,table.BOWL_Z[side]),.09)
-	ui.status("Lancio %d di 3" % attempts[side] if side == 0 else "Lancio avversario")
+	ui.status("Lancio %d di %d" % [attempts[side],max_throws] if side == 0 else "Lancio avversario")
 	var center := Vector3(0,table.FLOOR_Y,table.BOWL_Z[side])
 	sound("roll",center,.75)
 	pending = []
@@ -490,15 +554,25 @@ func roll() -> void:
 				fail("Discordanza tra faccia fisica e risultato")
 				return
 			frame_checks += 1
-	if lan and lan.active and side==1 and attempts[side]<3:
+	if lan and lan.active and side==1 and attempts[side]<max_throws:
 		phase="remote_select"
 		ui.status("Il rivale sceglie i dadi")
-	elif side == 1 or attempts[side] == 3:
-		var keep := opponent.keep(rules,side,pending,attempts[side]==3)
+	elif side == 1 or attempts[side] == max_throws:
+		var keep := opponent.keep(rules,side,pending,attempts[side]==max_throws)
 		commit(keep)
 	else:
 		phase = "select"
 		ui.action("Seleziona i dadi da tenere", "Conferma", confirm_selection)
+		if hints_on:
+			suggest_keep()
+
+# Suggerimento: pre-seleziona i dadi che il bot sceglierebbe al tuo posto. Puoi cambiarli prima di confermare.
+func suggest_keep() -> void:
+	var advice: Array = opponent.keep(rules,0,pending,false)
+	for id in advice:
+		if cubes[0][id] and not cubes[0][id].selected:
+			cubes[0][id].select(true)
+	ui.status("Suggerimento: ho evidenziato i dadi consigliati")
 
 func measure_spacing(active: Array) -> void:
 	for a in active.size():
@@ -537,8 +611,8 @@ func commit(keep: Array) -> void:
 	if ticket != generation:
 		return
 	var other := 1-side
-	var own_open: bool = attempts[side]<3 and rules.board[side].size()<6
-	var other_open: bool = attempts[other]<3 and rules.board[other].size()<6
+	var own_open: bool = attempts[side]<max_throws and rules.board[side].size()<6
+	var other_open: bool = attempts[other]<max_throws and rules.board[other].size()<6
 	if other_open:
 		offer_roll(other)
 	elif own_open:
@@ -622,7 +696,7 @@ func resolve(plan: Dictionary) -> void:
 	phase = "busy"
 	visual_hp = rules.hp.duplicate()
 	visual_gold = rules.gold.duplicate()
-	var enemy: Dictionary = network_enemy_plan if network_resolving else opponent.favor(rules,1,AI_SETS[saga_difficulty])
+	var enemy: Dictionary = network_enemy_plan if network_resolving else opponent.favor(rules,1,bot_loadout)
 	var events: Array = rules.resolve([plan,enemy])
 	if not integration:
 		stats_store.events(rules.round_no,events)
@@ -636,7 +710,8 @@ func resolve(plan: Dictionary) -> void:
 	var playback := {}
 	for event_index in events.size():
 		var event: Dictionary = events[event_index]
-		ui.describe_event(event)
+		if log_detail:
+			ui.describe_event(event)
 		if event.extra.has("attacker"):
 			if playback.is_empty():
 				playback = prepare_combat(events)
@@ -742,7 +817,7 @@ func plan_strikes(event: Dictionary,batch: Dictionary) -> Dictionary:
 
 func animate_combat(event: Dictionary,clips: Array) -> void:
 	var side: int = event.side
-	var speed := .04 if integration else 1.0
+	var speed := .04 if integration else speed_factor
 	for clip in clips:
 		var kind: int = clip.symbol
 		var defense_kind := Rules.HELMET if kind == Rules.AXE else Rules.SHIELD
@@ -752,7 +827,8 @@ func animate_combat(event: Dictionary,clips: Array) -> void:
 			title = "Asce contro elmi" if kind == Rules.AXE else "Frecce contro scudi"
 		else:
 			title = "Assalto delle asce" if kind == Rules.AXE else "Raffica di frecce"
-		ui.combat_detail(title,clip.strikes.size(),not blocked)
+		if log_detail:
+			ui.combat_detail(title,clip.strikes.size(),not blocked)
 		var duration := 0.0
 		for i in clip.strikes.size():
 			var strike: Dictionary = clip.strikes[i]
@@ -776,7 +852,7 @@ func animate_combat(event: Dictionary,clips: Array) -> void:
 func animate_theft(event: Dictionary) -> void:
 	var thief: int = event.side
 	var victim := 1-thief
-	var speed := .04 if integration else 1.0
+	var speed := .04 if integration else speed_factor
 	var hands := group_cubes(thief,Rules.HAND)
 	var victim_tokens: Array = table.tokens[victim]
 	var thief_tokens: Array = table.tokens[thief]
@@ -844,7 +920,7 @@ func play_event(event: Dictionary) -> void:
 		"favor":
 			animation.play("attivateon")
 			var index := Rules.FAVOR.keys().find(event.extra.id)
-			var sets: Array = equipped if side == 0 else (lan.peer_loadout if lan and lan.active else AI_SETS[saga_difficulty])
+			var sets: Array = equipped if side == 0 else (lan.peer_loadout if lan and lan.active else bot_loadout)
 			var slot := sets.find(event.extra.id)
 			place = table.figures[side][slot].position
 			place.y += .16
@@ -1011,7 +1087,7 @@ func pause(seconds: float) -> void:
 		await get_tree().process_frame
 		await get_tree().process_frame
 	else:
-		await get_tree().create_timer(seconds,false).timeout
+		await get_tree().create_timer(seconds*speed_factor,false).timeout
 
 func fail(reason: String) -> void:
 	push_error(reason)
@@ -1055,10 +1131,20 @@ func record_match_result() -> void:
 	if integration or stats_store.active.is_empty() or rules.winner < 0:
 		return
 	progression.complete_match(str(stats_store.active.id),str(stats_store.active.mode),rules.winner==0,saga_run)
+	if active_campaign != "" and str(stats_store.active.mode) == "solo":
+		var gained := int(progression.last_reward.get("xp",0))
+		var outcome: Dictionary = campaigns.record(active_campaign,rules.winner==0,gained)
+		if not outcome.is_empty():
+			progression.last_reward["campaign"] = {"chapter":int(outcome.chapter),"promoted":bool(outcome.promoted)}
 	stats_store.finish(rules.winner==0,rules.hp)
 
 
 func prepare_lan_guest() -> void:
+	max_throws = 3
+	speed_factor = 1.0
+	log_detail = true
+	hints_on = false
+	forced_first = -1
 	saga_run = progression.create_run(difficulty,false)
 	saga_notice = ""
 	generation+=1

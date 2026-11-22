@@ -14,7 +14,7 @@ const SETTINGS := [
 	{"id":"bot_style","name":"Stile del bot","hint":"Cambia quanto rischia e quanto difende.","options":[["balanced","Equilibrato"],["aggressive","Aggressivo"],["cautious","Prudente"]],"default":"balanced"},
 	{"id":"bot_tactics","name":"Tattiche del bot","hint":"Per livello, casuali o uguali alle tue.","options":[["tier","Per livello"],["random","Casuali"],["mirror","Come le tue"]],"default":"tier"},
 	{"id":"speed","name":"Velocità delle animazioni","hint":"Veloce accorcia pause e combattimenti.","options":[["normal","Normale"],["fast","Veloce"]],"default":"normal"},
-	{"id":"cloth","name":"Colore del panno","hint":"Solo estetico.","options":[["blue","Blu"],["green","Verde"],["red","Rosso"],["violet","Viola"]],"default":"blue"},
+	{"id":"log","name":"Cronaca dei colpi","hint":"Dettagliata mostra ogni colpo e ogni parata.","options":[["detailed","Dettagliata"],["brief","Breve"]],"default":"detailed"},
 	{"id":"hints","name":"Suggerimenti","hint":"Evidenzia i dadi consigliati. Riduce il premio XP.","options":[[false,"No"],[true,"Sì"]],"default":false},
 	{"id":"fixed_seed","name":"Lanci ripetibili","hint":"Stessi dadi ad ogni tentativo dello stesso capitolo.","options":[[false,"No"],[true,"Sì"]],"default":false}]
 var path: String
@@ -122,7 +122,7 @@ static func match_setup(campaign: Dictionary) -> Dictionary:
 	var bot_tokens := int(settings.bot_tokens)
 	return {"campaign":str(campaign.id),"difficulty":base,"tier":tier,"ai_level":maxi(base,mini(tier,2)),"trials_extra":8 if tier == 3 else 0,
 		"enemy_gold":tier if bot_tokens < 0 else bot_tokens,"player_gold":int(settings.player_tokens),"first":str(settings.first),"throws":int(settings.throws),
-		"style":str(settings.bot_style),"tactics":str(settings.bot_tactics),"speed":str(settings.speed),"cloth":str(settings.cloth),
+		"style":str(settings.bot_style),"tactics":str(settings.bot_tactics),"speed":str(settings.speed),"log":str(settings.log),
 		"hints":bool(settings.hints),"seed":(int(campaign.seed)*1009+int(campaign.chapter)*31) if settings.fixed_seed else 0,"chapter":int(campaign.chapter)}
 
 # Moltiplicatore del premio XP: più la partita è difficile, più rende. Con i suggerimenti rende meno.

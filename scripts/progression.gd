@@ -116,7 +116,7 @@ static func victory_xp(run: Dictionary) -> int:
 		return 0
 	var base := 100 + 30*clampi(int(run.get("difficulty",0)),0,2) + 10*clampi(int(run.get("tier",0)),0,3)
 	var bonus := 5*clampi(int(run.get("ranks",{}).get("wisdom",0)),0,3)
-	return roundi(float(base*(100+bonus))/100.0)
+	return roundi(float(base*(100+bonus))/100.0*float(run.get("xp_multiplier",1.0)))
 
 func complete_match(match_id: String, mode: String, victory: bool, run: Dictionary) -> Dictionary:
 	last_reward = {}
@@ -146,8 +146,11 @@ static func round_bonuses(match_rules: RefCounted, run: Dictionary) -> Array[Str
 		var supplies := int(ranks.get("provisions",0))
 		match_rules.gold[0] += supplies
 		match_rules.gold[1] += int(run.get("enemy_gold",0))
+		match_rules.gold[0] += int(run.get("player_gold",0))
 		if supplies > 0:
 			notes.append("Scorta · +%d gettoni" % supplies)
+		if int(run.get("player_gold",0)) > 0:
+			notes.append("Campagna · +%d gettoni" % int(run.player_gold))
 	if match_rules.round_no == 3:
 		var offering := int(ranks.get("offering",0))
 		match_rules.gold[0] += offering
