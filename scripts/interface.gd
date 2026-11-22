@@ -175,6 +175,8 @@ func clear_screen() -> void:
 	target_signature = ""
 	close_dialog()
 	close_context()
+	if hub != null:
+		hub.visible = false
 	if is_instance_valid(screen):
 		remove_child(screen)
 		screen.queue_free()
@@ -235,7 +237,16 @@ func fade(node: Control) -> void:
 	node.modulate.a = 0.0
 	node.create_tween().tween_property(node,"modulate:a",1.0,.25)
 
+var hub: Control
+
 func show_menu() -> void:
+	clear_screen()
+	if hub == null:
+		hub = preload("res://scripts/hub/hub.gd").new()
+		add_child(hub)
+		hub.setup(game,self,portrait)
+	hub.open()
+	return
 	clear_screen()
 	if portrait:
 		show_portrait_menu()

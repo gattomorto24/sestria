@@ -9,6 +9,8 @@ const Platform = preload("res://scripts/platform.gd")
 const PCVideo = preload("res://scripts/pc_video.gd")
 const Bindings = preload("res://scripts/input_bindings.gd")
 const Installer = preload("res://scripts/windows_installer.gd")
+const ProfileStore = preload("res://scripts/hub/profile_store.gd")
+const CampaignStore = preload("res://scripts/hub/campaign_store.gd")
 const CombatFX = preload("res://scripts/combat_fx.gd")
 const MENU_CAMERA := Vector3(4.23,3.65,4.77)
 const GAME_CAMERA := Vector3(0,11.0,.5)
@@ -34,6 +36,11 @@ var reduced := false
 var pc := {}                      # impostazioni video dei computer (pc_video.gd)
 var pc_touched := false           # true se l'utente le ha già salvate
 var fps_label: Label
+var profile: RefCounted             # profilo del giocatore (nome, icona, codice amico)
+var campaigns: RefCounted           # campagne salvate
+var friends: RefCounted             # amici (4.8)
+var active_campaign := ""           # id della campagna in corso ("" = partita al volo)
+var match_setup := {}               # parametri della partita di campagna in corso
 var music_volume := .51
 var effects_volume := .74
 var camera_goal := MENU_CAMERA
@@ -122,6 +129,8 @@ func _ready() -> void:
 	ui = UI.new()
 	$Interface.add_child(ui)
 	ui.setup(self)
+	profile=ProfileStore.new()
+	campaigns=CampaignStore.new()
 	stats_store=preload("res://scripts/statistics.gd").new()
 	progression=preload("res://scripts/progression.gd").new()
 	if Platform.lan_available() or Platform.online_available():
@@ -320,6 +329,22 @@ func rack(side: int, immediate := false) -> void:
 		var x: float = mirror*(1.38 + cube.die_id*.33)
 		var z: float = mirror*3.13
 		cube.arrange(Vector3(x,.152,z),(cube.die_id+side)%6,0.0 if immediate else .34)
+
+# Avvia la partita successiva di una campagna salvata.
+func start_campaign(id: String) -> void:
+	var index: int = campaigns.find(id)
+	if index < 0:
+		return
+	active_campaign = id
+	match_setup = CampaignStore.match_setup(campaigns.campaigns[index])
+	difficulty = int(match_setup.difficulty)
+	prepare()
+
+# Partita al volo: impostazioni predefinite, premio XP della saga.
+func start_quick() -> void:
+	active_campaign = ""
+	match_setup = {}
+	prepare()
 
 func prepare() -> void:
 	if lan and lan.is_guest():

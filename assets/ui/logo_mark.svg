@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffd58a"/>
+      <stop offset="0.55" stop-color="#ff9b3d"/>
+      <stop offset="1" stop-color="#e2554a"/>
+    </linearGradient>
+    <linearGradient id="face" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#262f63"/>
+      <stop offset="1" stop-color="#121733"/>
+    </linearGradient>
+    <linearGradient id="pip" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff1cf"/>
+      <stop offset="1" stop-color="#ffb84d"/>
+    </linearGradient>
+  </defs>
+  <path d="M64 6 L114 35 L114 93 L64 122 L14 93 L14 35 Z" fill="url(#rim)"/>
+  <path d="M64 15 L106 39.500 L106 88.500 L64 113 L22 88.500 L22 39.500 Z" fill="url(#face)"/>
+  <path d="M64 15 L106 39.500 L106 88.500 L64 113 L22 88.500 L22 39.500 Z" fill="none" stroke="#ffd58a" stroke-opacity="0.30" stroke-width="1.5"/>
+  <g fill="url(#pip)">
+    <circle cx="46" cy="44" r="8"/>
+    <circle cx="82" cy="44" r="8"/>
+    <circle cx="46" cy="64" r="8"/>
+    <circle cx="82" cy="64" r="8"/>
+    <circle cx="46" cy="84" r="8"/>
+    <circle cx="82" cy="84" r="8"/>
+  </g>
+</svg>
