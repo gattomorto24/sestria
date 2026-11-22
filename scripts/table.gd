@@ -150,9 +150,8 @@ func make_environment() -> void:
 	env.fog_enabled = true
 	env.fog_light_color = Color("#594637")
 	env.fog_density = .004
-	# Compatibility (web) applicherebbe la nebbia anche al fondo, che deve restare scuro come sul desktop.
-	if Platform.is_web():
-		env.fog_sky_affect = 0.0
+	# Compatibility (web) e FSR 2 applicherebbero la nebbia anche al fondo, che deve restare scuro.
+	env.fog_sky_affect = 0.0
 	world.environment = env
 	add_child(world)
 	fill = DirectionalLight3D.new()
@@ -189,6 +188,28 @@ func quality(reduced: bool) -> void:
 	fill.light_angular_distance = 0.0 if low else 1.8
 	get_viewport().msaa_3d = Viewport.MSAA_2X if low else Viewport.MSAA_4X
 	get_viewport().scaling_3d_scale = .89 if low else 1.0
+
+# Grafica avanzata per i computer (vedi pc_video.gd). `forward` è false con il renderer Compatibility,
+# dove SSAO e alcune qualità d'ombra non esistono.
+func apply_pc_graphics(s: Dictionary, forward: bool) -> void:
+	low = s.preset == "bassa"
+	var PC = preload("res://scripts/pc_video.gd")
+	env.ssao_enabled = forward and s.ssao != "off"
+	if env.ssao_enabled:
+		var level: int = PC.level_value(s.ssao,[RenderingServer.ENV_SSAO_QUALITY_VERY_LOW,RenderingServer.ENV_SSAO_QUALITY_LOW,RenderingServer.ENV_SSAO_QUALITY_MEDIUM,RenderingServer.ENV_SSAO_QUALITY_HIGH])
+		RenderingServer.environment_set_ssao_quality(level,true,.5,2,50.0,300.0)
+	env.glow_enabled = forward and s.glow
+	env.fog_enabled = s.fog
+	var shadows: bool = s.shadows != "off"
+	key.shadow_enabled = shadows
+	fill.shadow_enabled = shadows
+	if shadows:
+		RenderingServer.directional_shadow_atlas_set_size(PC.level_value(s.shadows,[1024,1024,2048,4096]),true)
+		var filter: int = PC.level_value(s.shadows,[RenderingServer.SHADOW_QUALITY_HARD,RenderingServer.SHADOW_QUALITY_SOFT_VERY_LOW,RenderingServer.SHADOW_QUALITY_SOFT_LOW,RenderingServer.SHADOW_QUALITY_SOFT_HIGH])
+		RenderingServer.directional_soft_shadow_filter_set_quality(filter)
+		RenderingServer.positional_soft_shadow_filter_set_quality(filter)
+		get_viewport().positional_shadow_atlas_size = PC.level_value(s.shadows,[1024,2048,4096,4096])
+	fill.light_angular_distance = 1.8 if s.soft_shadows and shadows else 0.0
 
 func make_room() -> void:
 	for i in 16:

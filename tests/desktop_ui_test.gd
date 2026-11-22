@@ -41,9 +41,14 @@ func run() -> void:
 		game.lan.online.configure([])
 	await snapshot("menu")
 	check(not game.portrait,"Interfaccia desktop orizzontale")
+	OS.set_environment("SESTRIA_FAKE_WINDOWS","1")
+	var PCSettings = preload("res://scripts/pc_settings.gd")
+	var Installer = preload("res://scripts/windows_installer.gd")
 	var screens := {
+		"launcher-0":func():Installer.show_wizard(PCSettings.open(game.ui,game,"sistema"),{},0),
+		"launcher-1":func():Installer.show_wizard(PCSettings.open(game.ui,game,"sistema"),{},1),
 		"modes":game.ui.show_play_modes,"pass":game.ui.show_pass,"stats":game.ui.show_statistics,
-		"lan":game.ui.show_lan,"online":game.ui.show_online,"updates":game.ui.show_updates,"settings-info":func():game.ui.show_settings(3),
+		"lan":game.ui.show_lan,"online":game.ui.show_online,"updates":game.ui.show_updates,"settings-info":func():game.ui.show_settings(3),"settings-screen":func():game.ui.show_settings(0),"settings-graphics":func():game.ui.show_settings(1),"settings-audio":func():preload("res://scripts/pc_settings.gd").open(game.ui,game,"audio"),"settings-keys":func():game.ui.show_settings(2),
 		"tactics":game.ui.show_equipped,"rules":game.ui.show_rules,"difficulty":game.ui.show_difficulty}
 	for key in screens:
 		screens[key].call()

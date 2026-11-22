@@ -363,7 +363,11 @@ func choose_difficulty(value: int) -> void:
 	game.save_settings()
 	show_menu()
 
-func show_settings(active := 0) -> void:
+func show_settings(active = 0) -> void:
+	if Platform.pc_available() and not portrait and not game.pc.is_empty():
+		# Windows e Mac: impostazioni complete in scripts/pc_settings.gd (0 schermo, 1 grafica, 2 comandi, 3 sistema).
+		preload("res://scripts/pc_settings.gd").open(self,game,["schermo","grafica","comandi","sistema"][clampi(active,0,3)] if active is int else str(active))
+		return
 	var body := modal("Impostazioni",570)
 	var tabs := HBoxContainer.new()
 	tabs.add_theme_constant_override("separation",5)
@@ -529,7 +533,7 @@ func match_layout() -> void:
 		tab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		stage_tabs.append(tab)
 	set_stage(0)
-	var footer := label(screen,"Clic destro  ·  Ispeziona     Esc  ·  Menu",13,IVORY)
+	var footer := label(screen,"Clic destro  ·  Ispeziona     1-6  ·  Dadi     Q W E  ·  Tattiche     Esc  ·  Menu" if Platform.pc_available() else "Clic destro  ·  Ispeziona     Esc  ·  Menu",13,IVORY)
 	footer.visible = not portrait
 	hud_outline(footer)
 	position_control(footer,.035,.953,0,0)

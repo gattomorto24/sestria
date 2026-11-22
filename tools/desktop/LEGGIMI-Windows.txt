@@ -6,9 +6,12 @@ Installazione
 1. Estrai l’archivio in una cartella a tua scelta.
 2. Avvia Sestria.exe. Lascia nella stessa cartella anche il file libwebrtc_native…dll: serve alle partite online.
 
+Per averlo come un'app vera (desktop, menu Start, «App installate»): Impostazioni > Sistema > Installa il launcher.
+
 Il programma non è firmato con un certificato commerciale: Windows SmartScreen può mostrare un avviso
 al primo avvio. Scegli Ulteriori informazioni > Esegui comunque solo se hai scaricato il pacchetto
 dalla pagina ufficiale delle release e la SHA-256 coincide con SHA256SUMS.txt.
 
-Controlli: clic sinistro seleziona, clic destro ispeziona un dado, Spazio o Invio avanza, Esc apre il menu.
-Gli aggiornamenti sono in Impostazioni > Info: Aggiorna, poi Riavvia per applicare. Se la versione cambia anche il motore, l’app scarica il pacchetto completo in Download e ne verifica la SHA-256.
+Controlli: clic sinistro seleziona, clic destro ispeziona un dado, Spazio o Invio avanza, 1-6 tengono i dadi,
+Q W E aprono le tattiche, F11 o Alt+Invio schermo intero, Esc apre il menu. Tutti i tasti si cambiano in Impostazioni > Comandi.
+Gli aggiornamenti sono in Impostazioni > Sistema: Aggiorna, poi Riavvia per applicare. Se la versione cambia anche il motore, l’app scarica il pacchetto completo in Download e ne verifica la SHA-256.

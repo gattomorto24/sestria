@@ -6,6 +6,9 @@ const Die = preload("res://scenes/die.tscn")
 const DieScript = preload("res://scripts/die.gd")
 const UI = preload("res://scripts/interface.gd")
 const Platform = preload("res://scripts/platform.gd")
+const PCVideo = preload("res://scripts/pc_video.gd")
+const Bindings = preload("res://scripts/input_bindings.gd")
+const Installer = preload("res://scripts/windows_installer.gd")
 const CombatFX = preload("res://scripts/combat_fx.gd")
 const MENU_CAMERA := Vector3(4.23,3.65,4.77)
 const GAME_CAMERA := Vector3(0,11.0,.5)
@@ -28,6 +31,9 @@ var pending: Array = []
 var config := ConfigFile.new()
 var difficulty := 1
 var reduced := false
+var pc := {}                      # impostazioni video dei computer (pc_video.gd)
+var pc_touched := false           # true se l'utente le ha già salvate
+var fps_label: Label
 var music_volume := .51
 var effects_volume := .74
 var camera_goal := MENU_CAMERA
@@ -73,6 +79,9 @@ var network_resolving := false
 var network_advancing := false
 
 func _ready() -> void:
+	# Opzioni di disinstallazione del launcher Windows (il processo si ferma qui).
+	if Platform.is_windows() and await Installer.handle_command_line(get_tree()):
+		return
 	var arguments := OS.get_cmdline_user_args()
 	portrait = OS.has_feature("android") or "--portrait" in arguments
 	if portrait:
@@ -108,6 +117,8 @@ func _ready() -> void:
 		rack(side,true)
 	table.quality(reduced)
 	combat_fx.reduced = reduced
+	if Platform.pc_available() and not portrait:
+		setup_pc_video()
 	ui = UI.new()
 	$Interface.add_child(ui)
 	ui.setup(self)
@@ -128,6 +139,8 @@ func _ready() -> void:
 		call_deferred("run_integration")
 
 func _process(delta: float) -> void:
+	if is_instance_valid(fps_label) and fps_label.visible:
+		fps_label.text = "%d FPS" % Engine.get_frames_per_second()
 	if stats_store and not integration:
 		stats_store.tick(delta)
 	var destination := camera_goal
@@ -146,6 +159,7 @@ func _process(delta: float) -> void:
 func read_settings() -> void:
 	if preload("res://scripts/compatibility.gd").load_settings(config) != OK:
 		return
+	Bindings.load_from(config)
 	difficulty = clampi(config.get_value("game","difficulty",1),0,2)
 	reduced = config.get_value("video","low",portrait)
 	music_volume = config.get_value("sound","music",.51)
@@ -161,9 +175,45 @@ func save_settings() -> void:
 	config.set_value("game","difficulty",difficulty)
 	config.set_value("game","favors",equipped)
 	config.set_value("video","low",reduced)
+	if pc_touched:
+		PCVideo.save_to(config,pc)
+	Bindings.save_to(config)
 	config.set_value("sound","music",music_volume)
 	config.set_value("sound","effects",effects_volume)
 	config.save("user://sestria.cfg")
+
+# Carica le impostazioni dei computer. Se mancano, derivano dalla vecchia scelta Alta/Ridotta e non toccano la finestra.
+func setup_pc_video() -> void:
+	pc_touched = config.has_section(PCVideo.SECTION)
+	if pc_touched:
+		pc = PCVideo.load_from(config)
+	else:
+		pc = PCVideo.with_preset(PCVideo.defaults(),"bassa" if reduced else "alta")
+	apply_pc(pc_touched)
+	fps_label = Label.new()
+	fps_label.position = Vector2(14,10)
+	fps_label.add_theme_font_size_override("font_size",15)
+	fps_label.add_theme_color_override("font_color",Color("#85e7cb"))
+	fps_label.visible = bool(pc.fps_counter)
+	var layer := CanvasLayer.new()
+	layer.layer = 100
+	layer.add_child(fps_label)
+	add_child(layer)
+
+func apply_pc(with_display := true) -> void:
+	reduced = pc.preset == "bassa"
+	combat_fx.reduced = pc.particles == "low"
+	if with_display:
+		PCVideo.apply_display(pc,get_window())
+	PCVideo.apply_graphics(pc,get_viewport(),table)
+
+func change_pc(settings: Dictionary, with_display := true) -> void:
+	pc = PCVideo.clean(settings)
+	pc_touched = true
+	apply_pc(with_display)
+	if is_instance_valid(fps_label):
+		fps_label.visible = bool(pc.fps_counter)
+	save_settings()
 
 func change_quality(value: bool) -> void:
 	reduced = value
@@ -851,17 +901,51 @@ func _unhandled_input(event: InputEvent) -> void:
 		if event.button_index in [MOUSE_BUTTON_LEFT,MOUSE_BUTTON_RIGHT]:
 			interact_at(event.position,event.button_index==MOUSE_BUTTON_RIGHT)
 	elif event is InputEventKey and event.pressed and not event.echo:
+		var action := Bindings.action_for(event)
+		if action == "fullscreen":
+			toggle_fullscreen()
+			return
+		if action == "fps" and is_instance_valid(fps_label):
+			change_pc(pc.merged({"fps_counter":not bool(pc.fps_counter)},true),false)
+			return
 		if is_instance_valid(ui.dialog):
-			if event.keycode == KEY_ESCAPE and phase not in ["coin","end"]:
+			if action == "back" and phase not in ["coin","end"]:
 				ui.close_dialog()
 			return
-		if event.keycode == KEY_ESCAPE:
-			go_back()
-		if event.keycode in [KEY_SPACE, KEY_ENTER]:
-			match phase:
-				"roll": roll()
-				"select": confirm_selection()
-				"between": next_round()
+		match action:
+			"back":
+				go_back()
+			"confirm":
+				match phase:
+					"roll": roll()
+					"select": confirm_selection()
+					"between": next_round()
+			"die1","die2","die3","die4","die5","die6":
+				toggle_die_key(int(action.substr(3))-1)
+			"tactic1","tactic2","tactic3":
+				open_tactic_key(int(action.substr(6))-1)
+
+# Tiene o lascia il dado con quel numero (tasti 1-6), come un clic sul dado.
+func toggle_die_key(die_id: int) -> void:
+	if phase != "select":
+		return
+	for obj in pending:
+		if obj.die_id == die_id and obj.side == 0:
+			interact_die_or_favor(obj,false)
+			return
+
+# Apre la tattica del totem indicato (tasti Q W E), come un clic sul totem.
+func open_tactic_key(slot: int) -> void:
+	if table.figures.size() > 0 and slot < table.figures[0].size():
+		interact_die_or_favor(table.figures[0][slot],false)
+
+func toggle_fullscreen() -> void:
+	if Platform.pc_available() and not pc.is_empty():
+		var next: Dictionary = pc.duplicate()
+		next.window_mode = "window" if pc.window_mode != "window" else "borderless"
+		change_pc(next,true)
+	elif Platform.fullscreen_available():
+		Platform.toggle_fullscreen()
 
 func go_back() -> void:
 	if is_instance_valid(ui.context_popup):

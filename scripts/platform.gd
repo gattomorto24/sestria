@@ -34,3 +34,10 @@ static func toggle_fullscreen() -> void:
 
 static func is_fullscreen() -> bool:
 	return DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN
+
+# Impostazioni video avanzate (risoluzione, FSR, V-Sync…): solo Windows e Mac. Il web e Android hanno le proprie.
+static func pc_available() -> bool:
+	return not is_web() and not OS.has_feature("android") and not OS.has_feature("ios")
+
+static func is_windows() -> bool:
+	return OS.get_name() == "Windows"
