@@ -43,7 +43,7 @@ static func build_list(hub: Control, parent: VBoxContainer) -> void:
 		Kit.card(list,"+  Nuova campagna","Scegli nome, sfida e dieci impostazioni.",false,func():
 			hub.navigate("campaign",{"view":"new","draft":{"name":"Campagna %d" % (items.size()+1),"difficulty":game.difficulty,"settings":Store.default_settings()}}),Kit.AZURE)
 	Kit.card(list,"⚡  Partita al volo","Una sfida contro il bot, con premio XP.",selected == "quick",func():hub.navigate("campaign",{"selected":"quick"}),Kit.VIOLET)
-	var right := Kit.panel(layout,"glass",24,26)
+	var right := Kit.panel(layout,"wood",24,26)
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	right.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var detail := Kit.scroll(right,14)
@@ -137,16 +137,21 @@ static func build_quick(hub: Control, parent: VBoxContainer) -> void:
 static func build_new(hub: Control, parent: VBoxContainer) -> void:
 	var game: Node3D = hub.game
 	var draft: Dictionary = hub.page_state.draft
-	var header := Kit.row(parent,12)
-	Kit.button(header,"‹  Indietro",func():hub.navigate("campaign",{}),"ghost")
-	var title := Kit.label(header,"Nuova campagna",30,Kit.TEXT,true)
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var multiplier := Store.xp_multiplier(draft.settings)
-	var badge := Kit.chip(header,"PREMIO XP ×%.2f" % multiplier,Kit.MINT if multiplier >= 1.0 else Kit.EMBER)
-	var layout: BoxContainer = Kit.row(parent,18) if not hub.portrait else Kit.column(parent,12)
+	var header: BoxContainer = Kit.row(parent,12) if not hub.portrait else Kit.column(parent,6)
+	var top := Kit.row(header,12)
+	Kit.button(top,"‹  Indietro",func():hub.navigate("campaign",{}),"ghost")
+	var title := Kit.title(top,"Nuova campagna",30 if not hub.portrait else 22)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title.clip_text = true
+	Kit.chip(header if hub.portrait else top,"PREMIO XP ×%.2f" % multiplier,Kit.MOSS if multiplier >= 1.0 else Kit.EMBER)
+	var holder: Control = parent
+	if hub.portrait:
+		holder = Kit.scroll(parent,12)
+	var layout: BoxContainer = Kit.row(holder,18) if not hub.portrait else Kit.column(holder,12)
 	layout.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	layout.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var left := Kit.panel(layout,"glass",22,24)
+	var left := Kit.panel(layout,"wood",22,24)
 	left.custom_minimum_size.x = 0.0 if hub.portrait else 400.0
 	var form := Kit.column(left,12)
 	Kit.label(form,"NOME",12,Kit.DIM,false,700)
@@ -164,7 +169,8 @@ static func build_new(hub: Control, parent: VBoxContainer) -> void:
 			draft.name = field.text
 			hub.navigate("campaign",{"view":"new","draft":draft}),DIFFICULTY_COLORS[index],DIFFICULTY_ICONS[index])
 		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	Kit.spacer(form,true)
+	if not hub.portrait:
+		Kit.spacer(form,true)
 	var create := Kit.button(form,"CREA E INIZIA",func():
 		var item: Dictionary = game.campaigns.create(field.text,int(draft.difficulty),draft.settings)
 		if item.is_empty():
@@ -172,10 +178,10 @@ static func build_new(hub: Control, parent: VBoxContainer) -> void:
 		else:
 			game.start_campaign(str(item.id)),"primary")
 	create.custom_minimum_size.y = Kit.scale(54)
-	var right := Kit.panel(layout,"glass",22,24)
+	var right := Kit.panel(layout,"wood",22,24)
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	right.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	var settings := Kit.scroll(right,12)
+	right.size_flags_vertical = Control.SIZE_EXPAND_FILL if not hub.portrait else Control.SIZE_SHRINK_BEGIN
+	var settings: VBoxContainer = Kit.scroll(right,12) if not hub.portrait else Kit.column(right,12)
 	Kit.label(settings,"DIECI IMPOSTAZIONI",12,Kit.DIM,false,700)
 	for entry in Store.SETTINGS:
 		build_setting(hub,settings,entry,draft,field)

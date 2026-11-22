@@ -416,13 +416,20 @@ class Card extends PanelContainer:
 			draw_texture_rect(kit.tex("seal"),Rect2(size.x-side-12,10,side,side),false)
 			draw_line(Vector2(size.x-side*.8-12,10+side*.52),Vector2(size.x-side*.5-12,10+side*.78),Color("#f6d8a8"),2.4,true)
 			draw_line(Vector2(size.x-side*.5-12,10+side*.78),Vector2(size.x-side*.2-12,10+side*.3),Color("#f6d8a8"),2.4,true)
+	# La scelta scatta al rilascio, se il dito non si è mosso: trascinare la lista non deve scegliere nulla.
+	var press_at := Vector2.ZERO
+	var pressing := false
 	func _gui_input(event: InputEvent) -> void:
-		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-			load("res://scripts/hub/kit.gd").sfx("click")
-			chosen.emit()
-			accept_event()
-		elif event is InputEventScreenTouch and event.pressed:
-			chosen.emit()
+		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+			if event.pressed:
+				press_at = event.global_position
+				pressing = true
+			elif pressing:
+				pressing = false
+				if event.global_position.distance_to(press_at) < 14.0:
+					load("res://scripts/hub/kit.gd").sfx("click")
+					chosen.emit()
+					accept_event()
 
 static func card(parent: Node, title_text: String, subtitle: String, selected: bool, callback: Callable, color := EMBER, icon := "") -> Card:
 	var item := Card.new(selected,color)
@@ -456,9 +463,16 @@ static func setting_row(parent: Node, title_text: String, hint := "") -> HBoxCon
 	return line
 
 # Selettore a segmenti: tasselli di cuoio, quello scelto è una targa d'ottone. `callback(index)`.
-static func segments(parent: Node, items: Array, active: int, callback: Callable, _color := EMBER) -> HBoxContainer:
-	var bar := HBoxContainer.new()
-	bar.add_theme_constant_override("separation",roundi(scale(4)))
+static func segments(parent: Node, items: Array, active: int, callback: Callable, _color := EMBER) -> Container:
+	var bar: Container
+	if portrait:
+		bar = HFlowContainer.new()
+		bar.add_theme_constant_override("h_separation",roundi(scale(4)))
+		bar.add_theme_constant_override("v_separation",roundi(scale(4)))
+		bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	else:
+		bar = HBoxContainer.new()
+		bar.add_theme_constant_override("separation",roundi(scale(4)))
 	if parent:
 		parent.add_child(bar)
 	for index in items.size():

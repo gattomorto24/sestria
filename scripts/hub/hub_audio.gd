@@ -31,6 +31,8 @@ func setup(owner_game: Node3D) -> void:
 func play_sfx(name: String) -> void:
 	if game == null or game.integration or game.effects_volume <= 0.0 or not streams.has(name):
 		return
+	if name in ["click","tab","confirm"] and game.has_method("haptic"):
+		game.haptic()
 	var player := players[cursor]
 	cursor = (cursor+1)%players.size()
 	player.stream = streams[name]

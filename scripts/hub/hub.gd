@@ -149,6 +149,12 @@ func load_page() -> void:
 		child.queue_free()
 	var script: GDScript = load(SCRIPTS[page])
 	script.build(self,content)
+	make_scrollable.call_deferred(content)
+
+# Su Android i tocchi devono arrivare alla zona scorrevole: pulsanti e schede non bloccano il trascinamento.
+func make_scrollable(node: Node) -> void:
+	if ui and ui.has_method("scrollable") and is_instance_valid(node):
+		ui.scrollable(node)
 
 # Se si lascia la scheda con una stanza LAN o online aperta e non iniziata, la stanza si chiude.
 func leave_room_if_needed() -> void:
@@ -290,24 +296,29 @@ func build_player_card(parent: Control) -> Control:
 # ---- Barra inferiore (verticale) ----
 
 func build_bottom_bar(parent: Control) -> void:
-	var bar := Kit.panel(parent,"glass",6,22)
-	var line := Kit.row(bar,2)
+	var bar := Kit.panel(parent,"bar",4)
+	var line := Kit.row(bar,3)
 	for index in PAGES.size():
 		var entry: String = PAGES[index]
 		var selected := entry == page
 		var item := Button.new()
-		item.text = PAGE_NAMES[entry] if entry != "multiplayer" else "Gioca insieme"
+		item.text = {"campaign":"Campagna","multiplayer":"Insieme","friends":"Amici","progress":"Progressi","options":"Opzioni"}[entry]
+		item.custom_minimum_size.x = 0
 		item.focus_mode = Control.FOCUS_NONE
 		item.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		item.custom_minimum_size.y = Kit.scale(52)
-		item.add_theme_font_override("font",Kit.body_font(600))
+		item.custom_minimum_size.y = Kit.scale(48)
+		item.add_theme_font_override("font",Kit.display_font(0))
 		item.add_theme_font_size_override("font_size",roundi(Kit.scale(11)))
-		var normal := Kit.pad(Kit.box_style(Color(Kit.EMBER.r,Kit.EMBER.g,Kit.EMBER.b,.22) if selected else Color(1,1,1,0),Color.TRANSPARENT,10,0),4,6)
-		for key in ["normal","hover","pressed"]:
-			item.add_theme_stylebox_override(key,normal)
-		for key in ["font_color","font_hover_color","font_pressed_color"]:
+		item.add_theme_stylebox_override("normal",Kit.tex_style("tab_active" if selected else "tab_normal",18,Kit.scale(4),Kit.scale(2),Kit.scale(2)))
+		item.add_theme_stylebox_override("hover",Kit.tex_style("tab_active" if selected else "tab_hover",18,Kit.scale(4),Kit.scale(2),Kit.scale(2)))
+		item.add_theme_stylebox_override("pressed",Kit.tex_style("tab_pressed",18,Kit.scale(4),Kit.scale(2),Kit.scale(2)))
+		for key in ["font_color","font_pressed_color"]:
 			item.add_theme_color_override(key,Kit.EMBER_LIGHT if selected else Kit.MUTED)
-		item.pressed.connect(navigate.bind(entry))
+		item.add_theme_color_override("font_hover_color",Kit.EMBER_LIGHT)
+		item.clip_text = true
+		item.pressed.connect(func():
+			Kit.sfx("tab")
+			navigate(entry))
 		line.add_child(item)
 
 # ---- Finestre ----
@@ -341,6 +352,7 @@ func modal(title: String, width := 560.0) -> VBoxContainer:
 	scroll_area.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll_area.custom_minimum_size.y = 0
 	column.add_child(scroll_area)
+	make_scrollable.call_deferred(column)
 	var body := Kit.column(scroll_area,14)
 	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	body.resized.connect(func():

@@ -2,13 +2,12 @@ extends Control
 const Rules = preload("res://scripts/rules.gd")
 const OnlineLink = preload("res://scripts/online_link.gd")
 const SafeSpace = preload("res://scripts/safe_space.gd")
-const TITLE = preload("res://assets/fonts/Cinzel.ttf")
-const BODY = preload("res://assets/fonts/Manrope.ttf")
-const IVORY := Color("#f3e7d2")
-const GOLD := Color("#dcb982")
-const MINT := Color("#85e7cb")
-const MUTED := Color("#9cb4b3")
-const INK := Color("#091b20")
+const Kit = preload("res://scripts/hub/kit.gd")
+const IVORY := Color("#f6e8c6")
+const GOLD := Color("#ffd98a")
+const MINT := Color("#9cc878")
+const MUTED := Color("#d2bd90")
+const INK := Color("#20120a")
 const FRAME = preload("res://assets/ui/panel.png")
 const PRIMARY = preload("res://assets/ui/primary.png")
 const SECONDARY = preload("res://assets/ui/secondary.png")
@@ -16,6 +15,9 @@ const HOVER = preload("res://assets/ui/hover.png")
 const PRESSED = preload("res://assets/ui/selected.png")
 const DISABLED = preload("res://assets/ui/disabled.png")
 var game: Node3D
+var title_font: Font
+var body_font: Font
+var hub: Control
 var screen: Control
 var dialog: Control
 var context_popup: Control
@@ -59,16 +61,19 @@ func setup(owner_game: Node3D) -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 	mouse_filter = MOUSE_FILTER_IGNORE
+	Kit.portrait = true
+	title_font = Kit.display_font(1)
+	body_font = Kit.body_font(500)
 	var palette := Theme.new()
-	palette.default_font = BODY
-	palette.default_font_size = 28
+	palette.default_font = body_font
+	palette.default_font_size = 30
 	palette.set_color("font_color","Label",IVORY)
-	palette.set_font_size("font_size","Button",27)
-	palette.set_font("font","Button",TITLE)
+	palette.set_font_size("font_size","Button",25)
+	palette.set_font("font","Button",title_font)
 	palette.set_color("font_color","Button",IVORY)
-	palette.set_color("font_hover_color","Button",IVORY)
-	palette.set_color("font_pressed_color","Button",IVORY)
-	palette.set_color("font_disabled_color","Button",MUTED)
+	palette.set_color("font_hover_color","Button",GOLD)
+	palette.set_color("font_pressed_color","Button",GOLD)
+	palette.set_color("font_disabled_color","Button",Kit.DIM)
 	for state in ["normal","hover","pressed","focus","disabled"]:
 		palette.set_stylebox(state,"Button",chrome({"normal":SECONDARY,"hover":HOVER,"pressed":PRESSED,"focus":HOVER,"disabled":DISABLED}[state]))
 	palette.set_stylebox("panel","PanelContainer",chrome(FRAME,24))
@@ -92,7 +97,7 @@ func style(fill: Color, border: Color, padding := 20) -> StyleBoxFlat:
 func label(parent: Node, text: String, font_size := 28, color := IVORY, display := false) -> Label:
 	var node := Label.new()
 	node.text = text
-	node.add_theme_font_override("font",TITLE if display else BODY)
+	node.add_theme_font_override("font",title_font if display else body_font)
 	node.add_theme_font_size_override("font_size",font_size)
 	node.add_theme_color_override("font_color",color)
 	node.mouse_filter = MOUSE_FILTER_IGNORE
@@ -104,7 +109,7 @@ func text(parent: Node, content: String, font_size := 28, color := MUTED, width_
 	node.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	node.clip_text = true
 	node.custom_minimum_size.x = size.x-margins.x-margins.z-48-width_reduction
-	node.custom_minimum_size.y = ceilf(BODY.get_multiline_string_size(content,HORIZONTAL_ALIGNMENT_LEFT,node.custom_minimum_size.x,font_size).y)+8
+	node.custom_minimum_size.y = ceilf(body_font.get_multiline_string_size(content,HORIZONTAL_ALIGNMENT_LEFT,node.custom_minimum_size.x,font_size).y)+8
 	node.size_flags_horizontal = SIZE_EXPAND_FILL
 	return node
 
@@ -185,6 +190,8 @@ func board_region() -> Rect2:
 func clear_screen() -> void:
 	close_dialog()
 	close_context()
+	if hub != null:
+		hub.visible = false
 	if is_instance_valid(screen):
 		remove_child(screen)
 		screen.queue_free()
@@ -209,58 +216,52 @@ func wash(parent: Node, menu := false) -> void:
 	parent.add_child(art)
 	art.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 
+func ensure_hub() -> void:
+	if hub == null:
+		hub = preload("res://scripts/hub/hub.gd").new()
+		add_child(hub)
+		hub.setup(game,self,true)
+
+# Margini sicuri (alto, basso) per il menu: tacca, barra dei gesti.
+func safe_margins() -> Vector2:
+	return Vector2(margins.y,margins.w)
+
 func show_menu() -> void:
 	clear_screen()
 	menu_mode = true
 	update_margins()
-	wash(screen,true)
-	var banner := TextureRect.new()
-	var crop := AtlasTexture.new()
-	crop.atlas = preload("res://assets/ui/brand_banner.svg")
-	crop.region = Rect2(0,0,368,220)
-	banner.texture = crop
-	banner.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	banner.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	banner.mouse_filter = MOUSE_FILTER_IGNORE
-	screen.add_child(banner)
-	place(banner,Rect2(size.x/2-250,margins.y-40,500,298))
-	var sigil := preload("res://scripts/sigil.gd").new()
-	screen.add_child(sigil)
-	place(sigil,Rect2(size.x/2-240,size.y*.36-180,480,480))
-	sigil.modulate.a = .25
-	var top := vbox(screen,10)
-	var title_offset := 250-maxf(0,margins.y-40)*.6
-	place(top,Rect2(margins.x,margins.y+title_offset,size.x-margins.x-margins.z,0))
-	var edition := label(top,"S E I   D A D I .   M I L L E   S T R A T E G I E .",20,GOLD)
-	edition.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var title := label(top,"SESTRIA",88,IVORY,true)
-	top.move_child(title,0)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var subtitle := label(top,"Il destino è nelle tue mani.",28,MUTED)
-	subtitle.visible = margins.y < 80
-	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var bottom := vbox(screen,16)
-	place(bottom,Rect2(margins.x,size.y-margins.w-524,size.x-margins.x-margins.z,0))
-	var start := button(bottom,"INIZIA LA SAGA  →",show_play_modes,true)
-	start.custom_minimum_size.y = 112
-	var difficulty := button(bottom,"SFIDA  ·  "+["ESPLORATORE","GUERRIERO","MAESTRO"][game.difficulty],show_difficulty)
-	difficulty.custom_minimum_size.y = 88
-	var nav := hbox(bottom,12)
-	button(nav,"Tattiche",show_equipped)
-	button(nav,"Regole",show_rules)
-	button(nav,"Opzioni",show_settings)
-	var extras := hbox(bottom,12)
-	for entry in [["Statistiche",show_statistics],["Pass · %d" % game.progression.points(),show_pass],["Profilo",show_profile]]:
-		button(extras,entry[0],entry[1]).add_theme_font_size_override("font_size",24)
-	var progress_card := PanelContainer.new()
-	progress_card.add_theme_stylebox_override("panel",style(Color("#10252b"),GOLD,12))
-	bottom.add_child(progress_card)
-	var progress_content := vbox(progress_card,8)
-	var progress_row := hbox(progress_content)
-	var current_level := label(progress_row,"LIVELLO %d" % game.progression.level(),23,GOLD,true)
-	current_level.size_flags_horizontal = SIZE_EXPAND_FILL
-	label(progress_row,"%d / %d XP" % [game.progression.xp_in_level(),game.progression.xp_required(game.progression.level())],23,IVORY)
-	xp_bar(progress_content)
+	ensure_hub()
+	hub.open()
+
+# Le impostazioni stanno nella scheda Opzioni del menu; durante una partita si aprono sopra al tavolo.
+func show_settings(active = 0) -> void:
+	ensure_hub()
+	var tab: String = active if active is String else ["audio","graphics","system","game"][clampi(active,0,3)]
+	hub.open("options",{"tab":tab,"overlay":game.phase != "menu"})
+
+func refresh_profile() -> void:
+	if hub != null and hub.visible:
+		hub.rebuild_deferred()
+
+func refresh_updates() -> void:
+	if hub != null:
+		hub.refresh_updates()
+
+func refresh_friends() -> void:
+	if hub != null:
+		hub.refresh_friends()
+
+func friend_invited(from_name: String, code: String) -> void:
+	if hub != null:
+		hub.friend_invited(from_name,code)
+
+func refresh_lan() -> void:
+	if hub != null and not game.lan.started:
+		hub.refresh_network()
+
+func lan_problem(message: String) -> void:
+	if hub != null:
+		hub.network_problem(message)
 
 func match_layout() -> void:
 	clear_screen()
@@ -356,7 +357,7 @@ func sync() -> void:
 	if menu_mode or not is_instance_valid(primary_action):
 		return
 	var signature: String = game.phase+str(game.targets)+str(game.attempts)
-	for cube in game.cubes[0]:
+	for cube in game.cubes[game.acting]:
 		signature += str(cube.selected)
 	if hud_signature == signature:
 		return
@@ -365,7 +366,7 @@ func sync() -> void:
 	layout.call_deferred()
 	primary_action.disabled = not action_callback.is_valid() or game.phase in ["ai","busy","sorting"]
 	if game.phase == "select":
-		var count: int = game.cubes[0].filter(func(c):return c.selected and not c.committed).size()
+		var count: int = game.cubes[game.acting].filter(func(c):return c.selected and not c.committed).size()
 		primary_action.text = "TIENI %d DADI  →" % count if count > 0 else "RILANCIA TUTTI  →"
 		set_stage(1)
 
@@ -397,7 +398,80 @@ func status(message: String) -> void:
 
 func favor_stage() -> void:
 	set_stage(2)
-	action("Attiva una tattica o conserva i gettoni", "Conserva e combatti",game.resolve.bind({}))
+	rebuild_favor_row()
+	action(("%s: attiva una tattica o conserva i gettoni" % game.player_names[game.acting]) if game.hotseat else "Attiva una tattica o conserva i gettoni","Conserva e combatti",game.resolve.bind({}))
+
+# I pulsanti delle tattiche seguono il lato che gioca adesso (Passa e gioca).
+func rebuild_favor_row() -> void:
+	if not is_instance_valid(favor_row):
+		return
+	for child in favor_row.get_children():
+		favor_row.remove_child(child)
+		child.queue_free()
+	for id in game.loadout(game.acting):
+		var entry := button(favor_row,Rules.FAVOR[id][0].split("’")[0],game.inspect_favor.bind(game.acting,id))
+		entry.custom_minimum_size.y = 88
+		entry.add_theme_font_size_override("font_size",24)
+
+# Passa e gioca: schermata di passaggio, così il secondo giocatore sceglie la tattica senza vedere l'altra.
+func handoff(next_name: String, ready: Callable) -> void:
+	var body := sheet("Passa il dispositivo")
+	text(body,"Ora tocca a %s. La tattica appena scelta resta segreta fino alla risoluzione: consegna il telefono e premi il pulsante." % next_name,28,IVORY)
+	button(body,"SONO %s, PRONTO" % next_name.to_upper(),func():
+		close_dialog()
+		ready.call(),true)
+	Kit.sfx("open")
+
+func finish_hotseat() -> void:
+	var winner: int = game.rules.winner
+	var body := sheet("Vince %s" % game.player_names[winner])
+	text(body,"Pietre rimaste · %s %d / %s %d" % [game.player_names[0],game.rules.hp[0],game.player_names[1],game.rules.hp[1]],28,IVORY)
+	button(body,"RIVINCITA",func():
+		close_dialog()
+		game.start_hotseat(game.player_names[0],game.player_names[1]),true)
+	button(body,"Torna al menu",game.menu)
+
+func finish(victory: bool) -> void:
+	if game.hotseat:
+		finish_hotseat()
+		return
+	var campaign: bool = game.active_campaign != ""
+	var body := sheet("Vittoria!" if victory else "La partita è persa")
+	Kit.sfx("confirm" if victory else "back")
+	text(body,"Pietre rimaste · Tu %d / Rivale %d" % game.rules.hp,28,IVORY)
+	if game.lan and game.lan.active:
+		if game.lan.role=="host":
+			button(body,"UNA NUOVA SFIDA",game.rematch_lan,true)
+		else:
+			text(body,"Il creatore della stanza può iniziare una nuova sfida.")
+	else:
+		var reward: Dictionary = game.progression.last_reward
+		if reward.has("error"):
+			text(body,str(reward.error),25,GOLD)
+		elif victory and reward.has("xp"):
+			text(body,"+%d XP" % reward.xp,34,MINT)
+			if int(reward.levels) > 0:
+				text(body,"LIVELLO %d → %d  ·  +%d PUNTI" % [reward.from_level,reward.to_level,reward.points],27,GOLD)
+			text(body,"Livello %d · %d / %d XP" % [game.progression.level(),game.progression.xp_in_level(),game.progression.xp_required(game.progression.level())],25)
+			Kit.meter(body,game.progression.xp_in_level(),game.progression.xp_required(game.progression.level()),20)
+		elif not victory:
+			text(body,"Gli XP si guadagnano con le vittorie. I tuoi progressi e punti restano al sicuro.",25)
+		if campaign:
+			var index: int = game.campaigns.find(game.active_campaign)
+			if index >= 0:
+				var item: Dictionary = game.campaigns.campaigns[index]
+				text(body,"Campagna «%s» · %s · serie %d" % [item.name,game.campaigns.chapter_title(int(item.chapter)),int(item.streak)],25)
+			button(body,"PROSSIMA PARTITA" if victory else "RIPROVA",func():
+				close_dialog()
+				game.start_campaign(game.active_campaign),true)
+		else:
+			button(body,"UN'ALTRA PARTITA",func():
+				close_dialog()
+				game.start_quick(),true)
+		button(body,"I miei progressi",func():
+			game.menu()
+			hub.open("progress"))
+	button(body,"Torna al menu",game.menu)
 
 func selection_count(value: int, limit: int) -> void:
 	feedback.text = "Seconda occasione · %d / %d bersagli" % [value,limit]
@@ -451,6 +525,12 @@ func sheet(title: String, context := false) -> VBoxContainer:
 	if restore > 0:
 		restore_pass_scroll.call_deferred(root,restore)
 	return body
+
+func restore_pass_scroll(root: Control, position_y: int) -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if is_instance_valid(root) and root.has_node("Card/Scroll"):
+		root.get_node("Card/Scroll").scroll_vertical = position_y
 
 func scrollable(node: Node) -> void:
 	# Godot sends a touch to the control under the finger and stops at the first MOUSE_FILTER_STOP.
@@ -533,104 +613,14 @@ func ask_leave() -> void:
 	var body := sheet("Un momento di tregua")
 	text(body,"La saga ti aspetta.")
 	button(body,"RIPRENDI",close_dialog,true)
-	button(body,"Audio e prestazioni",show_settings)
-	button(body,"Come si gioca",show_rules)
+	button(body,"Impostazioni",show_settings)
 	button(body,"Lascia il tavolo",game.menu)
-
-func show_difficulty() -> void:
-	var body := sheet("Scegli la sfida")
-	text(body,"La sfida scelta è la base della saga. Ai livelli 4, 8 e 12 il rivale diventa più forte; il Pass ti aiuta a prepararti.",25)
-	for i in 3:
-		button(body,["ESPLORATORE · Impara il rituale","GUERRIERO · Una sfida equilibrata","MAESTRO · Nessuna concessione"][i],func():
-			game.difficulty = i
-			game.save_settings()
-			show_menu(),i == game.difficulty)
-	button(body,"Indietro",close_dialog)
-
-func show_rules() -> void:
-	var body := sheet("Come si gioca a Sestria")
-	text(body,"01  /  IL DESTINO",23,GOLD)
-	text(body,"Sei dadi, quindici pietre. Sopravvivi al rivale. Ogni manche offre fino a tre lanci: tocca i dadi 3D che vuoi tenere, poi conferma. Tieni premuto un dado per esaminarlo e ruotarlo.")
-	text(body,"02  /  IL COMBATTIMENTO",23,GOLD)
-	text(body,"L’ascia incontra l’elmo. La freccia incontra lo scudo. Ogni attacco senza difesa costa una pietra. Le mani contrapposte si annullano; quelle rimaste rubano gettoni dopo il combattimento.")
-	text(body,"03  /  LE TATTICHE",23,GOLD)
-	text(body,"I bordi dorati generano gettoni. Equipaggia tre tattiche e attivale al momento giusto: costo e priorità sono sempre indicati. Le tattiche tardivi possono usare i gettoni appena guadagnati.")
-	text(body,"04  /  IL TOCCO",23,GOLD)
-	text(body,"Tocco: seleziona. Pressione prolungata: ispeziona. Il mirino in alto alterna la vista completa e l’inquadratura ravvicinata. Indietro chiude la finestra; la pausa sospende l’intera partita.")
-	button(body,"Ho capito",close_dialog,true)
-
-func show_settings() -> void:
-	var body := sheet("Il tuo ritmo")
-	text(body,"SESTRIA · VERSIONE "+game.updater.current_version,23,GOLD)
-	button(body,"AGGIORNAMENTI",show_updates)
-	button(body,"Diagnostica locale",show_diagnostics)
-	text(body,"AUDIO",22,GOLD)
-	volume_slider(body,"Musica",game.music_volume,game.change_music)
-	volume_slider(body,"Effetti",game.effects_volume,func(value):game.effects_volume=value;game.save_settings())
-	text(body,"PRESTAZIONI",22,GOLD)
-	for i in 3:
-		button(body,["Bilanciata · 60 fps","Risparmio · 30 fps","Qualità · 60 fps"][i],func():
-			game.graphics_mode=i
-			game.adaptive_level=0
-			game.apply_mobile_quality()
-			game.save_settings()
-			show_settings(),i == game.graphics_mode)
-	text(body,"I valori indicano il limite dei fotogrammi. La fluidità effettiva dipende dal telefono.",23,MUTED)
-	button(body,"Adatta al dispositivo  ·  "+("SÌ" if game.adaptive else "NO"),func():game.adaptive=not game.adaptive;game.save_settings();show_settings())
-	button(body,"Vibrazione  ·  "+("SÌ" if game.haptics else "NO"),func():game.haptics=not game.haptics;game.save_settings();show_settings())
-	button(body,"Fatto",close_dialog,true)
-
-func volume_slider(parent: Node, title: String, value: float, callback: Callable) -> void:
-	var row := hbox(parent)
-	var caption := label(row,title,26)
-	caption.custom_minimum_size.x = 130
-	var slider := HSlider.new()
-	slider.min_value = 0
-	slider.max_value = 1
-	slider.step = .01
-	slider.value = value
-	slider.custom_minimum_size = Vector2(300,96)
-	slider.size_flags_horizontal = SIZE_EXPAND_FILL
-	row.add_child(slider)
-	var rail := style(Color("#334e50"),Color.TRANSPARENT,4)
-	var fill := style(GOLD,Color.TRANSPARENT,4)
-	slider.add_theme_stylebox_override("slider",rail)
-	slider.add_theme_stylebox_override("grabber_area",fill)
-	slider.value_changed.connect(callback)
-
-func show_equipped(slot := 0, selected := "") -> void:
-	var body := sheet("Le tue tattiche")
-	text(body,"Tre tattiche. Scegli un posto, poi il dio che porterai al tavolo.",26)
-	var slots := hbox(body,8)
-	for i in 3:
-		button(slots,"%d · %s" % [i+1,Rules.FAVOR[game.equipped[i]][0].split("’")[0]],show_equipped.bind(i),i == slot)
-	if selected != "":
-		var info: Array = Rules.FAVOR[selected]
-		text(body,info[0],29,GOLD)
-		text(body,info[4] % info[3][0],26,IVORY)
-		text(body,"Priorità %s   /   Costi %s · %s · %s" % [info[1],info[2][0],info[2][1],info[2][2]],23)
-	var grid := GridContainer.new()
-	grid.columns = 2
-	grid.add_theme_constant_override("h_separation",12)
-	grid.add_theme_constant_override("v_separation",12)
-	body.add_child(grid)
-	for id in Rules.FAVOR:
-		var entry := button(grid,Rules.FAVOR[id][0],func():
-			var old: int = game.equipped.find(id)
-			if old >= 0:
-				game.equipped[old]=game.equipped[slot]
-			game.equipped[slot]=id
-			game.save_settings()
-			show_equipped(slot,id),id in game.equipped)
-		entry.custom_minimum_size.x = (size.x-margins.x-margins.z-60)/2
-		entry.add_theme_font_size_override("font_size",25)
-	button(body,"Scelte confermate",close_dialog,true)
 
 func favor_popup(id: String, actionable: bool) -> void:
 	var data: Array = Rules.FAVOR[id]
 	var body := sheet(data[0],true)
 	text(body,"TATTICA  /  PRIORITÀ %d" % data[1],22,GOLD)
-	var sacrifice := [1 if game.rules.hp[0] > 1 else 0]
+	var sacrifice := [1 if game.rules.hp[game.acting] > 1 else 0]
 	if actionable and id in ["reserve","exchange"]:
 		text(body,"Pietre da offrire",26)
 		var row := hbox(body)
@@ -639,16 +629,16 @@ func favor_popup(id: String, actionable: bool) -> void:
 		amount.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		var minus := button(row,"−",func():sacrifice[0]=maxi(0,sacrifice[0]-1);amount.text=str(sacrifice[0]))
 		minus.custom_minimum_size.x = 100
-		var plus := button(row,"+",func():sacrifice[0]=mini(game.rules.hp[0]-1,sacrifice[0]+1);amount.text=str(sacrifice[0]))
+		var plus := button(row,"+",func():sacrifice[0]=mini(game.rules.hp[game.acting]-1,sacrifice[0]+1);amount.text=str(sacrifice[0]))
 		plus.custom_minimum_size.x = 100
 	for level in 3:
 		text(body,data[4] % data[3][level],27,IVORY)
 		var price := "%d GETTONI  ·  LIVELLO %d" % [data[2][level],level+1]
 		if actionable:
 			var entry := button(body,price,func():close_context();game.pick_favor(id,level,sacrifice[0]),true)
-			var available: int = game.rules.gold[0]
+			var available: int = game.rules.gold[game.acting]
 			if data[1] > 5:
-				available += game.rules.marks(0)
+				available += game.rules.marks(game.acting)
 			entry.disabled = available < data[2][level]
 		else:
 			text(body,price,23,GOLD)
@@ -718,386 +708,30 @@ func inspect_die(id: int, face: int) -> void:
 		text(body,"✦ Bordo dorato: genera un gettone.",26,GOLD)
 	button(body,"Torna al tavolo",close_context,true)
 
-func finish(victory: bool) -> void:
-	var body := sheet("Partita vinta" if victory else "La saga continua")
-	text(body,"VITTORIA" if victory else "SCONFITTA",24,GOLD)
-	text(body,"Pietre rimaste · Tu %d / Rivale %d" % game.rules.hp,28,IVORY)
-	if game.lan and game.lan.active:
-		if game.lan.role=="host":
-			button(body,"UNA NUOVA SFIDA LAN",game.rematch_lan,true)
-		else:
-			text(body,"Il creatore della stanza può iniziare una nuova sfida.")
-	else:
-		var reward: Dictionary = game.progression.last_reward
-		if reward.has("error"):
-			text(body,str(reward.error),25,GOLD)
-		elif victory and reward.has("xp"):
-			text(body,"+%d XP  ·  SAGA OFFLINE" % reward.xp,30,MINT)
-			if int(reward.levels) > 0:
-				text(body,"LIVELLO %d → %d  ·  +%d PUNTI PASS" % [reward.from_level,reward.to_level,reward.points],27,GOLD)
-			text(body,"Livello %d · %d / %d XP" % [game.progression.level(),game.progression.xp_in_level(),game.progression.xp_required(game.progression.level())],25)
-			xp_bar(body)
-		elif not victory:
-			text(body,"Gli XP si guadagnano con le vittorie. I tuoi progressi e punti restano al sicuro.",25)
-		button(body,"PASS · %d PUNTI DISPONIBILI" % game.progression.points(),show_pass)
-		button(body,"UNA NUOVA SAGA",func():close_dialog();game.prepare(),true)
-	button(body,"Torna al menu",game.menu)
-
 func _unhandled_key_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
 		game.go_back()
 		get_viewport().set_input_as_handled()
 
+# Le vecchie texture (verde e oro) sono sostituite dalla pelle rustica del nuovo kit.
 func chrome(texture: Texture2D, padding := 22) -> StyleBoxTexture:
-	var skin := StyleBoxTexture.new()
-	skin.texture = texture
-	skin.texture_margin_left = 29
-	skin.texture_margin_right = 29
-	skin.texture_margin_top = 25
-	skin.texture_margin_bottom = 25
-	skin.content_margin_left = padding
-	skin.content_margin_right = padding
-	skin.content_margin_top = 12 if texture != FRAME else padding
-	skin.content_margin_bottom = 12 if texture != FRAME else padding
+	var name := "leather_normal"
+	var edge := 22.0
+	if texture == PRIMARY or texture == PRESSED:
+		name = "brass_normal"
+	elif texture == HOVER:
+		name = "leather_hover"
+	elif texture == DISABLED:
+		name = "leather_disabled"
+	elif texture == FRAME:
+		name = "wood_panel"
+		edge = 40.0
+	var skin: StyleBoxTexture = Kit.tex_style(name,edge,0).duplicate()
+	skin.content_margin_left = maxf(padding,edge*.5)
+	skin.content_margin_right = maxf(padding,edge*.5)
+	skin.content_margin_top = maxf(12,edge*.4) if texture != FRAME else padding+8
+	skin.content_margin_bottom = maxf(12,edge*.4) if texture != FRAME else padding+8
 	return skin
-
-func show_play_modes() -> void:
-	var body := sheet("Scegli il tuo rivale")
-	var run: Dictionary = game.progression.create_run(game.difficulty)
-	text(body,"SAGA OFFLINE · LIVELLO %d" % run.level,23,GOLD)
-	text(body,"%s · Rivale %s · %d gettoni iniziali. Vittoria: %d XP." % [game.progression.TITLES[run.tier],["Esploratore","Guerriero","Maestro"][run.ai_level],run.enemy_gold,game.progression.victory_xp(run)],26,IVORY)
-	button(body,"CONTINUA LA SAGA",game.prepare,true)
-	text(body,"Vinci, sali di livello e ottieni 2 punti Pass a ogni avanzamento. I potenziamenti si attivano dalla prossima saga.",25)
-	if OnlineLink.supported():
-		button(body,"PARTITA ONLINE · ELENCO E INVITO",show_online)
-		text(body,"Gioca contro persone di altre reti: scegli una stanza pubblica dall’elenco o entra con un codice invito. Nessun server di gioco e nessun account.",25)
-	button(body,"SFIDA LAN · STESSO WI-FI",show_lan)
-	text(body,"La LAN collega due dispositivi sulla stessa rete o hotspot. Regole standard, senza buff o ricompense XP. Nessun account obbligatorio, nessun server di gioco.",25)
-	button(body,"Indietro",close_dialog)
-
-func xp_bar(parent: Node) -> ProgressBar:
-	var bar := ProgressBar.new()
-	bar.max_value = game.progression.xp_required(game.progression.level())
-	bar.value = game.progression.xp_in_level()
-	bar.show_percentage = false
-	bar.custom_minimum_size.y = 8
-	bar.mouse_filter = MOUSE_FILTER_IGNORE
-	for key in ["background","fill"]:
-		bar.add_theme_stylebox_override(key,style(MINT if key=="fill" else Color("#29413f"),Color.TRANSPARENT,0))
-	parent.add_child(bar)
-	return bar
-
-func show_pass(scroll_y := 0) -> void:
-	if game.phase not in ["menu","end"] or (game.lan and game.lan.active):
-		return
-	var progress: RefCounted = game.progression
-	var body := sheet("Il Pass della saga")
-	pass_panel = true
-	var overview := hbox(body)
-	var level_title := label(overview,"LIVELLO %d" % progress.level(),28,GOLD,true)
-	level_title.size_flags_horizontal = SIZE_EXPAND_FILL
-	label(overview,"%d PUNTI" % progress.points(),28,MINT,true)
-	text(body,"%d / %d XP al prossimo livello · +2 punti" % [progress.xp_in_level(),progress.xp_required(progress.level())],24)
-	xp_bar(body)
-	text(body,"Solo saga offline. Ogni grado acquistato resta attivo nelle saghe successive. Puoi riassegnare tutti i punti gratis.",25)
-	button(body,"Torna al risultato" if game.phase=="end" else "Torna al menu",close_pass)
-	if not pass_note.is_empty():
-		text(body,pass_note,25,MINT)
-		pass_note = ""
-	for id: String in progress.ORDER:
-		var upgrade: Dictionary = progress.UPGRADES[id]
-		var rank_index: int = progress.rank_of(id)
-		var card := PanelContainer.new()
-		card.add_theme_stylebox_override("panel",chrome(FRAME,18))
-		body.add_child(card)
-		var content := vbox(card,12)
-		var heading := label(content,"%s  /  %s" % [upgrade.rune,upgrade.name],26,GOLD,true)
-		heading.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		heading.custom_minimum_size.x = size.x-margins.x-margins.z-84
-		text(content,"GRADO %d / %d" % [rank_index,upgrade.costs.size()],21,MINT if rank_index>0 else MUTED,36)
-		text(content,upgrade.description,25,IVORY,36)
-		var status: String = progress.purchase_status(id)
-		if rank_index < upgrade.costs.size():
-			text(content,"Prossimo grado · %d punti · Livello %d" % [upgrade.costs[rank_index],upgrade.levels[rank_index]],22,MUTED,36)
-			var buy := button(content,"ACQUISTA · %d PUNTI" % upgrade.costs[rank_index] if status.is_empty() else status,buy_upgrade.bind(id),status.is_empty())
-			buy.add_theme_font_size_override("font_size",24)
-			buy.disabled = not status.is_empty()
-		else:
-			text(content,"TUTTI I GRADI ACQUISITI",22,MINT,36)
-	text(body,"LA SAGA DIVENTA PIÙ DIFFICILE",23,GOLD)
-	text(body,"Livello 4: rivale almeno Guerriero, +1 gettone iniziale. Livello 8: almeno Maestro, +2 gettoni. Livello 12: Maestro con più analisi tattica, +3 gettoni. Dadi e tiri restano equi.",25)
-	text(body,"XP per vittoria: 100 / 130 / 160 secondo la sfida scelta, +10 per ogni soglia della saga raggiunta, più Esperienza sul campo. Le sconfitte e le partite interrotte non assegnano XP.",25)
-	if progress.spent_points() > 0:
-		button(body,"RIASSEGNA · %d PUNTI" % progress.spent_points(),confirm_refund)
-	button(body,"Torna al risultato" if game.phase=="end" else "Torna al menu",close_pass,true)
-	restore_pass_scroll.call_deferred(dialog,scroll_y)
-
-func restore_pass_scroll(root: Control, position_y: int) -> void:
-	# The sheet is laid out over a couple of frames; wait until its range can hold the saved position.
-	for attempt in 12:
-		await get_tree().process_frame
-		if not is_instance_valid(root) or not root.has_node("Card/Scroll"):
-			return
-		var scroll: ScrollContainer = root.get_node("Card/Scroll")
-		var bar := scroll.get_v_scroll_bar()
-		if bar.max_value-bar.page >= position_y or attempt == 11:
-			scroll.scroll_vertical = position_y
-			return
-
-func buy_upgrade(id: String) -> void:
-	if game.phase not in ["menu","end"]:
-		return
-	var scroll_y := int(dialog.get_node("Card/Scroll").scroll_vertical)
-	var error: Error = game.progression.purchase(id)
-	pass_note = "%s · grado %d acquisito. Attivo dalla prossima saga." % [game.progression.UPGRADES[id].name,game.progression.rank_of(id)] if error==OK else "Acquisto non salvato. Nessun punto è stato speso."
-	show_pass(scroll_y)
-
-func confirm_refund() -> void:
-	var body := sheet("Riscrivi il tuo destino")
-	pass_panel = true
-	text(body,"Restituisci i %d punti spesi e azzeri i gradi del Pass. Livello e XP restano invariati. La riassegnazione è gratuita." % game.progression.spent_points(),27,IVORY)
-	button(body,"RESTITUISCI I PUNTI",func():
-		var error: Error = game.progression.refund()
-		pass_note = "Punti restituiti. Scegli il tuo nuovo percorso." if error==OK else "Riassegnazione non salvata. I potenziamenti restano attivi."
-		show_pass(),true)
-	button(body,"Mantieni i potenziamenti",show_pass)
-
-func close_pass() -> void:
-	if game.phase == "end":
-		finish(game.rules.winner==0)
-	else:
-		show_menu()
-
-func show_statistics() -> void:
-	var data: Dictionary=game.stats_store.data
-	var body := sheet("Le tue imprese")
-	text(body,"STATISTICHE SU QUESTO DISPOSITIVO",22,GOLD)
-	var grid := GridContainer.new()
-	grid.columns=2
-	grid.add_theme_constant_override("h_separation",24)
-	grid.add_theme_constant_override("v_separation",20)
-	body.add_child(grid)
-	for pair in [["Partite",str(int(data.played))],["Vittorie",str(int(data.wins))],["Percentuale vittorie","%d%%" % game.stats_store.win_rate()],["Serie migliore",str(int(data.best_streak))],["Danni inflitti",str(int(data.damage_dealt))],["Danni subiti",str(int(data.damage_taken))],["Attacchi parati",str(int(data.blocked))],["Gettoni rubati",str(int(data.tokens_stolen))],["Lanci",str(int(data.rolls))],["Tempo di gioco","%d min" % (int(data.seconds)/60)]]:
-		var card := PanelContainer.new()
-		card.custom_minimum_size.x=(size.x-margins.x-margins.z-72)/2
-		grid.add_child(card)
-		var item := vbox(card,4)
-		var caption := label(item,pair[0],22,MUTED)
-		caption.clip_text=true
-		label(item,pair[1],36,GOLD,true)
-	text(body,"Manche concluse: %d · Partite interrotte: %d" % [data.rounds,data.abandoned],24)
-	for mode in ["solo","lan"]:
-		var info: Dictionary=data.modes.get(mode,{"played":0,"wins":0})
-		text(body,"%s · %d partite / %d vittorie" % ["Computer" if mode=="solo" else "LAN",info.played,info.wins],26,IVORY)
-	if not data.favors.is_empty():
-		text(body,"FAVORI INVOCATI",22,GOLD)
-		for id in data.favors:
-			text(body,"%s · %d" % [Rules.FAVOR[id][0] if Rules.FAVOR.has(id) else id,data.favors[id]],24)
-	text(body,"ULTIME PARTITE",22,GOLD)
-	if data.history.is_empty():
-		text(body,"La tua prima impresa deve ancora essere scritta.")
-	for match_info in data.history.slice(0,12):
-		text(body,"%s · %s · %d manche / %d:%02d" % ["Vittoria" if match_info.victory else "Sconfitta","LAN" if match_info.mode=="lan" else "Computer",match_info.rounds,int(match_info.seconds)/60,int(match_info.seconds)%60],25,IVORY)
-	button(body,"Torna al menu",close_dialog,true)
-
-func show_profile() -> void:
-	var body := sheet("Il tuo profilo")
-	profile_panel=true
-	var account: Node=game.account
-	if account.profile.is_empty():
-		text(body,"Gioca come ospite oppure collega il tuo profilo Google. La LAN funziona anche senza accesso.",28)
-		var login := button(body,"Accedi con Google",account.sign_in)
-		for state in ["normal","hover","pressed","focus","disabled"]:
-			var google_style := style(Color("#f2f2f2") if state in ["pressed","disabled"] else Color.WHITE,Color("#747775"),20)
-			google_style.set_corner_radius_all(8)
-			login.add_theme_stylebox_override(state,google_style)
-		for key in ["font_color","font_hover_color","font_pressed_color","font_focus_color"]:
-			login.add_theme_color_override(key,Color("#1f1f1f"))
-		login.add_theme_color_override("font_disabled_color",Color("#747775"))
-		login.add_theme_font_override("font",BODY)
-		login.disabled=account.busy or not account.available()
-		if ResourceLoader.exists("res://assets/ui/google_logo.png"):
-			login.icon=load("res://assets/ui/google_logo.png")
-			login.add_theme_constant_override("icon_max_width",40)
-		if not account.available():
-			text(body,"Il pulsante Google è disponibile nella versione Android configurata.",24)
-	else:
-		text(body,str(account.profile.name),36,GOLD)
-		text(body,str(account.profile.email),26,IVORY)
-		button(body,"Esci dall’account Google",account.sign_out)
-	if account.message!="":
-		text(body,account.message,25,GOLD)
-	text(body,"Nome e profilo vengono salvati solo qui. Statistiche e partite non sono caricate su cloud; l’accesso Google richiede Internet.",24)
-	button(body,"Fatto",close_dialog,true)
-
-func refresh_profile() -> void:
-	if profile_panel:
-		show_profile()
-
-func show_lan() -> void:
-	var body := sheet("Sfida nella rete locale")
-	lan_panel=true
-	var session: Node=game.lan
-	session.enable_discovery(true)
-	if lan_note!="":
-		text(body,lan_note,25,GOLD)
-	if session.role=="host":
-		text(body,"STANZA CREATA",22,GOLD)
-		text(body,"Codice · "+session.room_code,38,IVORY)
-		var ips: PackedStringArray=session.local_addresses()
-		text(body,"IP · "+(" / ".join(ips) if not ips.is_empty() else "Nessuna rete locale trovata"),26)
-		text(body,session.status,27)
-		if session.active:
-			button(body,"INIZIA LA SFIDA",session.start_match,true)
-	elif session.role=="guest":
-		text(body,session.status,27,IVORY)
-	else:
-		text(body,"Due dispositivi sullo stesso Wi-Fi o hotspot. Il primo crea la stanza; il secondo la trova tra le stanze vicine e tocca Entra, senza codice. Per una connessione manuale usa IP e codice.",27)
-		button(body,"CREA STANZA",session.host_room,true)
-		var address_input := LineEdit.new()
-		address_input.placeholder_text="IP del creatore · es. 192.168.1.20"
-		address_input.custom_minimum_size.y=96
-		address_input.virtual_keyboard_type=LineEdit.KEYBOARD_TYPE_DEFAULT
-		body.add_child(address_input)
-		var code_input := LineEdit.new()
-		code_input.placeholder_text="Codice stanza · 6 cifre"
-		code_input.max_length=6
-		code_input.custom_minimum_size.y=96
-		code_input.virtual_keyboard_type=LineEdit.KEYBOARD_TYPE_NUMBER
-		body.add_child(code_input)
-		button(body,"UNISCITI ALLA STANZA",func():session.join_room(address_input.text.strip_edges(),code_input.text.strip_edges()))
-		if not session.rooms.is_empty():
-			text(body,"STANZE VICINE",22,GOLD)
-			for ip in session.rooms:
-				var entry: Dictionary=session.rooms[ip]
-				if str(entry.code)!="":
-					button(body,"ENTRA · "+entry.name+" · "+ip,func():session.join_room(ip,str(entry.code)),true)
-				else:
-					button(body,entry.name+" · "+ip+" · serve il codice",func():address_input.text=ip)
-		button(body,"Aggiorna stanze vicine",show_lan)
-	text(body,"Se non vi vedete: controllate la rete, disattivate l’isolamento client del router oppure usate un hotspot. Non serve aprire porte su Internet.",23)
-	button(body,"Chiudi stanza" if session.role!="" else "Indietro",close_dialog)
-
-func show_online() -> void:
-	var body := sheet("Partita online")
-	online_panel=true
-	var session: Node=game.lan
-	if session.role=="" and not session.active and session.online.role!="browse":
-		session.online_browse()
-	if lan_note!="":
-		text(body,lan_note,25,GOLD)
-		lan_note=""
-	if session.role=="host":
-		text(body,"STANZA ONLINE APERTA",22,GOLD)
-		text(body,"Invito · "+OnlineLink.format_invite(session.invite_code),38,IVORY)
-		text(body,session.status,27)
-		button(body,"COPIA IL CODICE INVITO",func():DisplayServer.clipboard_set(OnlineLink.format_invite(session.invite_code)))
-		if session.active:
-			button(body,"INIZIA LA SFIDA",session.start_match,true)
-	elif session.role=="guest":
-		text(body,session.status,27,IVORY)
-	else:
-		text(body,"Crea una stanza e passa il codice invito a un amico, oppure rendila pubblica per farla comparire nell’elenco. Per entrare scegli una stanza o scrivi il codice invito.",27)
-		button(body,"CREA STANZA PUBBLICA",func():session.host_online(true),true)
-		button(body,"CREA STANZA CON INVITO",func():session.host_online(false))
-		var invite_input := LineEdit.new()
-		invite_input.placeholder_text="Codice invito · es. K7QF-2M9X"
-		invite_input.max_length=9
-		invite_input.text=invite_text
-		invite_input.custom_minimum_size.y=96
-		invite_input.virtual_keyboard_type=LineEdit.KEYBOARD_TYPE_DEFAULT
-		invite_input.text_changed.connect(func(value:String):invite_text=value)
-		body.add_child(invite_input)
-		button(body,"ENTRA CON IL CODICE",func():session.join_online_invite(invite_input.text))
-		text(body,"STANZE ONLINE",22,GOLD)
-		var shown := 0
-		for id in session.online.rooms:
-			var entry: Dictionary=session.online.rooms[id]
-			shown+=1
-			if entry.free:
-				button(body,"ENTRA · "+entry.name,func():session.join_online_room(id),true)
-			else:
-				text(body,entry.name+" · stanza piena",25)
-		if shown==0:
-			text(body,"Nessuna stanza pubblica trovata per ora. L’elenco si aggiorna da solo; puoi crearne una tu.",25)
-		button(body,"Cerca di nuovo",session.online.browse)
-	text(body,"Il collegamento è diretto: l’altro giocatore può vedere il tuo indirizzo IP. Per trovarsi si usano tracker pubblici gratuiti di terzi; se non rispondono, la sfida LAN resta disponibile.",23)
-	button(body,"Chiudi stanza" if session.role!="" else "Indietro",close_dialog)
-
-func refresh_lan() -> void:
-	if game.lan.started:
-		return
-	if online_panel:
-		show_online()
-	elif lan_panel:
-		show_lan()
-
-func lan_problem(message: String) -> void:
-	lan_note=message
-	if game.phase=="menu":
-		if online_panel:
-			show_online()
-		else:
-			show_lan()
-
-func show_updates() -> void:
-	var update: Node=game.updater
-	var body := sheet("Aggiornamenti")
-	updates_panel=true
-	updates_signature=update.state+str(update.release.get("version",""))
-	text(body,"SESTRIA · VERSIONE "+update.current_version,24,GOLD)
-	updates_message=text(body,update.message,27,IVORY)
-	if update.state in ["downloading","verifying","ready"]:
-		updates_meter=ProgressBar.new()
-		updates_meter.max_value=1
-		updates_meter.value=update.progress
-		updates_meter.custom_minimum_size.y=18
-		updates_meter.show_percentage=false
-		body.add_child(updates_meter)
-	if update.state=="available":
-		text(body,"NUOVA VERSIONE · "+str(update.release.version),24,MINT)
-		if not str(update.release.notes).is_empty():
-			text(body,str(update.release.notes),24)
-		if update.release.get("mode","package")=="content":
-			button(body,"AGGIORNA",update.download_update,true)
-		else:
-			button(body,"SCARICA APK COMPLETO",update.download_update,true)
-	elif update.state=="ready":
-		var content_mode: bool=update.release.get("mode","package")=="content"
-		if game.phase in ["menu","end"]:
-			if content_mode:
-				button(body,"RIAVVIA PER APPLICARE",update.restart_to_apply,true)
-			else:
-				button(body,"INSTALLA AGGIORNAMENTO",update.install_update,true)
-		else:
-			text(body,"Torna al menu dopo la partita per applicare l’aggiornamento.",25)
-	elif update.state in ["checking","downloading"]:
-		button(body,"Annulla",update.cancel)
-	elif update.state!="verifying":
-		button(body,"VERIFICA NUOVI AGGIORNAMENTI",update.check_updates,true)
-	text(body,"Gli aggiornamenti provengono dalle release pubbliche di GitHub. Tocca Aggiorna: l’app scarica i nuovi contenuti, ne controlla firma e SHA-256 e li applica al riavvio, senza installare nulla. Se una versione cambia anche il motore, serve l’APK completo e la conferma di Android.",24)
-	button(body,"Apri le release su GitHub",func():OS.shell_open(update.RELEASES))
-	if not update.last_checked.is_empty():
-		text(body,"Ultima verifica · "+update.last_checked,22)
-	button(body,"Torna alle impostazioni",show_settings)
-
-func refresh_updates() -> void:
-	if not updates_panel:
-		return
-	var update: Node=game.updater
-	if updates_signature!=update.state+str(update.release.get("version","")):
-		if not updates_refresh_pending:
-			updates_refresh_pending=true
-			apply_updates_refresh.call_deferred()
-	elif is_instance_valid(updates_message):
-		updates_message.text=update.message
-		if is_instance_valid(updates_meter):
-			updates_meter.value=update.progress
-
-func apply_updates_refresh() -> void:
-	updates_refresh_pending=false
-	if updates_panel and is_instance_valid(dialog):
-		show_updates()
 
 func show_diagnostics() -> void:
 	var body := sheet("Diagnostica locale")

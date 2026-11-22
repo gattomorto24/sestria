@@ -12,7 +12,7 @@ const DIFFICULTY_COLORS := [Kit.MOSS,Kit.EMBER,Kit.WINE]
 const START_PAGES := [["campaign","Campagna","Riprendi o crea una campagna."],["multiplayer","Multigiocatore","Passa e gioca, LAN e online."],["friends","Amici","Gli amici e le richieste."],["progress","Progressi","Livello, potenziamenti e statistiche."]]
 
 static func pages(hub: Control) -> Array:
-	if Platform.pc_available() and not hub.portrait:
+	if Platform.pc_available() and not hub.portrait and "pc" in hub.game:
 		return ["game","screen","graphics","audio","controls","system"]
 	return ["game","audio","graphics","system"]
 
@@ -221,7 +221,7 @@ static func level_row(hub: Control, parent: Node, title: String, hint: String, k
 
 static func build_graphics(hub: Control, parent: VBoxContainer) -> void:
 	var game: Node3D = hub.game
-	if game.pc.is_empty():
+	if not ("pc" in game) or game.pc.is_empty():
 		build_simple_graphics(hub,parent)
 		return
 	var s: Dictionary = game.pc
@@ -270,6 +270,28 @@ static func build_graphics(hub: Control, parent: VBoxContainer) -> void:
 static func build_simple_graphics(hub: Control, parent: VBoxContainer) -> void:
 	var game: Node3D = hub.game
 	section(parent,"Qualità")
+	if "graphics_mode" in game:
+		# Android: tre profili, con limite di fotogrammi
+		var cards: BoxContainer = Kit.column(parent,8)
+		var names := ["Bilanciata · 60 fps","Risparmio · 30 fps","Qualità · 60 fps"]
+		var texts := ["Il consiglio per la maggior parte dei telefoni.","Meno calore e meno consumi.","Tutti gli effetti, per telefoni potenti."]
+		for i in 3:
+			Kit.card(cards,names[i],texts[i],game.graphics_mode == i,func():
+				game.graphics_mode = i
+				game.adaptive_level = 0
+				game.apply_mobile_quality()
+				game.save_settings()
+				reload(hub,"graphics"),Kit.EMBER)
+		Kit.paragraph(parent,"I valori indicano il limite dei fotogrammi. La fluidità effettiva dipende dal telefono.",0.0,14,Kit.DIM)
+		Kit.toggle(Kit.setting_row(parent,"Adatta al dispositivo","Abbassa da solo la qualità se il telefono fatica."),game.adaptive,func(v):
+			game.adaptive = v
+			game.save_settings()
+			reload(hub,"graphics"))
+		Kit.toggle(Kit.setting_row(parent,"Vibrazione","Un piccolo impulso quando tocchi."),game.haptics,func(v):
+			game.haptics = v
+			game.save_settings()
+			reload(hub,"graphics"))
+		return
 	var cards: BoxContainer = Kit.row(parent,10) if not hub.portrait else Kit.column(parent,8)
 	for index in 2:
 		var low: bool = index == 1
@@ -329,6 +351,8 @@ static func build_system(hub: Control, parent: VBoxContainer) -> void:
 	if Platform.is_windows() or OS.get_environment("SESTRIA_FAKE_WINDOWS") != "":
 		var Installer = load("res://scripts/windows_installer.gd")
 		Installer.build_section(hub,parent)
+	if hub.ui.has_method("show_diagnostics"):
+		Kit.button(parent,"Diagnostica locale",func():hub.ui.show_diagnostics(),"secondary",260)
 	section(parent,"Dati")
 	Kit.paragraph(parent,"Profilo, campagne, statistiche e progressi sono salvati su questo dispositivo.",0.0,15,Kit.MUTED)
 
@@ -344,10 +368,12 @@ static func build_updates(hub: Control, parent: VBoxContainer) -> void:
 		Kit.label(parent,"Nuova versione · "+str(update.release.version),17,Kit.MOSS,false,700)
 		if not str(update.release.get("notes","")).is_empty():
 			Kit.paragraph(parent,str(update.release.notes),0.0,14,Kit.MUTED)
-		Kit.button(parent,"AGGIORNA" if update.release.get("mode","package") == "content" else "SCARICA IL PACCHETTO COMPLETO",update.download_update,"primary",260)
+		Kit.button(parent,"AGGIORNA" if update.release.get("mode","package") == "content" else ("SCARICA L'APK COMPLETO" if update.has_method("install_update") else "SCARICA IL PACCHETTO COMPLETO"),update.download_update,"primary",260)
 	elif update.state == "ready":
 		if update.release.get("mode","package") == "content":
 			Kit.button(parent,"RIAVVIA PER APPLICARE",update.restart_to_apply,"primary",260)
+		elif update.has_method("install_update"):
+			Kit.button(parent,"INSTALLA AGGIORNAMENTO",update.install_update,"primary",260)
 		else:
 			Kit.button(parent,"MOSTRA NELLA CARTELLA DOWNLOAD",update.reveal_update,"primary",260)
 	elif update.state in ["checking","downloading"]:
