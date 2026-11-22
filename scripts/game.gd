@@ -38,7 +38,7 @@ var pc_touched := false           # true se l'utente le ha già salvate
 var fps_label: Label
 var profile: RefCounted             # profilo del giocatore (nome, icona, codice amico)
 var campaigns: RefCounted           # campagne salvate
-var friends: RefCounted             # amici (4.8)
+var friends: Node                 # amici (4.8)
 var active_campaign := ""           # id della campagna in corso ("" = partita al volo)
 var match_setup := {}               # parametri della partita di campagna in corso
 var max_throws := 3                 # lanci per manche (campagna: 2 o 3)
@@ -47,6 +47,13 @@ var log_detail := true              # cronaca dettagliata dei colpi
 var bot_loadout: Array = []         # tattiche del bot nella partita in corso
 var forced_first := -1              # chi inizia se non si tira la moneta (0 tu, 1 bot)
 var hints_on := false               # suggerimenti: pre-seleziona i dadi consigliati
+var hotseat := false                # «Passa e gioca»: due persone sullo stesso dispositivo
+var acting := 0                     # lato controllato dalla persona che sta giocando adesso
+var hotseat_plan := {}              # tattica già scelta dal primo giocatore
+var hotseat_has_plan := false
+var player_names := ["Tu","Avversario"]
+var start_page := "campaign"        # scheda del menu aperta all'avvio
+var quick_settings := CampaignStore.default_settings()   # impostazioni della partita al volo
 var music_volume := .51
 var effects_volume := .74
 var camera_goal := MENU_CAMERA
@@ -145,6 +152,12 @@ func _ready() -> void:
 		lan.setup(self)
 		lan.changed.connect(ui.refresh_lan)
 		lan.problem.connect(ui.lan_problem)
+	if Platform.online_available() and lan != null and preload("res://scripts/hub/friends_service.gd").supported():
+		friends = preload("res://scripts/hub/friends_service.gd").new()
+		add_child(friends)
+		friends.setup(self)
+		friends.changed.connect(ui.refresh_friends)
+		friends.invited.connect(ui.friend_invited)
 	if Platform.updater_available():
 		updater=preload("res://scripts/desktop_updater.gd").new()
 		add_child(updater)
@@ -175,6 +188,14 @@ func read_settings() -> void:
 	if preload("res://scripts/compatibility.gd").load_settings(config) != OK:
 		return
 	Bindings.load_from(config)
+	start_page = str(config.get_value("game","start_page","campaign"))
+	if not start_page in ["campaign","multiplayer","friends","progress"]:
+		start_page = "campaign"
+	var stored_quick := {}
+	if config.has_section("quick"):
+		for key in config.get_section_keys("quick"):
+			stored_quick[key] = config.get_value("quick",key)
+	quick_settings = CampaignStore.clean_settings(stored_quick)
 	difficulty = clampi(config.get_value("game","difficulty",1),0,2)
 	reduced = config.get_value("video","low",portrait)
 	music_volume = config.get_value("sound","music",.51)
@@ -189,6 +210,9 @@ func save_settings() -> void:
 		return
 	config.set_value("game","difficulty",difficulty)
 	config.set_value("game","favors",equipped)
+	config.set_value("game","start_page",start_page)
+	for key in quick_settings:
+		config.set_value("quick",key,quick_settings[key])
 	config.set_value("video","low",reduced)
 	if pc_touched:
 		PCVideo.save_to(config,pc)
@@ -341,15 +365,30 @@ func start_campaign(id: String) -> void:
 	var index: int = campaigns.find(id)
 	if index < 0:
 		return
+	hotseat = false
+	player_names = ["Tu","Avversario"]
 	active_campaign = id
 	match_setup = CampaignStore.match_setup(campaigns.campaigns[index])
 	difficulty = int(match_setup.difficulty)
 	prepare()
 
 # Partita al volo: impostazioni predefinite, premio XP della saga.
-func start_quick() -> void:
+# Passa e gioca: due persone, un solo dispositivo. Nessun bot, nessun XP; le tattiche si scelgono in segreto.
+func start_hotseat(first_name: String, second_name: String) -> void:
 	active_campaign = ""
 	match_setup = {}
+	hotseat = true
+	player_names = [ProfileStore.clean_name(first_name),ProfileStore.clean_name(second_name)]
+	prepare()
+
+func loadout(side: int) -> Array:
+	return equipped if side == 0 else bot_loadout
+
+func start_quick() -> void:
+	hotseat = false
+	player_names = ["Tu","Avversario"]
+	active_campaign = ""
+	match_setup = CampaignStore.quick_setup(quick_settings,difficulty)
 	prepare()
 
 # Applica le impostazioni della campagna (o i valori predefiniti) alla partita che sta per iniziare.
@@ -361,15 +400,17 @@ func apply_match_setup() -> void:
 	hints_on = false
 	opponent.aggression_bias = 1.0
 	opponent.pressure_bias = 1.0
-	if match_setup.is_empty() or integration or (lan and lan.started):
+	if match_setup.is_empty() or integration or (lan and lan.started) or hotseat:
 		return
-	saga_run.ai_level = int(match_setup.ai_level)
-	saga_run.trials_extra = int(match_setup.trials_extra)
-	saga_run.enemy_gold = int(match_setup.enemy_gold)
+	if match_setup.has("ai_level"):
+		saga_run.ai_level = int(match_setup.ai_level)
+		saga_run.trials_extra = int(match_setup.trials_extra)
+		saga_run.difficulty = int(match_setup.difficulty)
+		saga_run.tier = int(match_setup.tier)
+	if int(match_setup.get("bot_tokens",-1)) >= 0 or match_setup.has("enemy_gold"):
+		saga_run.enemy_gold = int(match_setup.get("enemy_gold",match_setup.get("bot_tokens",0)))
 	saga_run.player_gold = int(match_setup.player_gold)
-	saga_run.xp_multiplier = CampaignStore.xp_multiplier(campaigns.campaigns[campaigns.find(active_campaign)].settings) if campaigns.find(active_campaign) >= 0 else 1.0
-	saga_run.difficulty = int(match_setup.difficulty)
-	saga_run.tier = int(match_setup.tier)
+	saga_run.xp_multiplier = float(match_setup.get("xp_multiplier",1.0))
 	max_throws = int(match_setup.throws)
 	speed_factor = .6 if match_setup.speed == "fast" else 1.0
 	log_detail = match_setup.log != "brief"
@@ -410,11 +451,13 @@ func prepare() -> void:
 		lan.start_match()
 		return
 	if not integration:
-		stats_store.start("lan" if lan and lan.started else "solo",difficulty)
+		stats_store.start("lan" if lan and lan.started else ("hotseat" if hotseat else "solo"),difficulty)
 	generation += 1
+	acting = 0
+	hotseat_has_plan = false
 	rules.reset(0)
 	progression.last_reward = {}
-	saga_run = progression.create_run(difficulty,not (lan and lan.started))
+	saga_run = progression.create_run(difficulty,not (lan and lan.started) and not hotseat)
 	# Existing automated matches keep a reproducible, unmodified baseline.
 	if integration and not (lan and lan.started):
 		saga_run = {"enabled":false,"ai_level":difficulty,"trials_extra":0}
@@ -423,7 +466,7 @@ func prepare() -> void:
 	saga_difficulty = int(saga_run.ai_level)
 	opponent.level = saga_difficulty
 	opponent.trials_extra = int(saga_run.trials_extra)
-	bot_loadout = pick_bot_loadout()
+	bot_loadout = equipped.duplicate() if hotseat else pick_bot_loadout()
 	camera_goal = GAME_CAMERA
 	look_goal = MATCH_TARGET
 	phase = "coin"
@@ -451,7 +494,10 @@ func toss(guess: int) -> void:
 	var flip := create_tween()
 	flip.tween_property(table.coin,"rotation:x",TAU*2.0,.50).from(0.0)
 	sound("coin",table.coin.position)
-	ui.status("Hai l’iniziativa" if winner == 0 else "L’avversario ha l’iniziativa")
+	if hotseat:
+		ui.status("Inizia %s" % player_names[winner])
+	else:
+		ui.status("Hai l’iniziativa" if winner == 0 else "L’avversario ha l’iniziativa")
 	await pause(.57)
 	if ticket == generation:
 		begin_round()
@@ -484,9 +530,11 @@ func offer_roll(side: int) -> void:
 	ui.set_stage(0)
 	camera_goal = GAME_CAMERA
 	look_goal = MATCH_TARGET
-	if side == 0:
+	if side == 0 or hotseat:
 		phase = "roll"
-		ui.action(saga_notice+"\nLancia i dadi" if not saga_notice.is_empty() and attempts[0]==0 else "Lancia i dadi", "Lancia", roll)
+		acting = side
+		var turn_note := ("Turno di %s\n" % player_names[side]) if hotseat else ""
+		ui.action(turn_note+(saga_notice+"\nLancia i dadi" if not saga_notice.is_empty() and attempts[0]==0 else "Lancia i dadi"), "Lancia", roll)
 	else:
 		phase = "ai"
 		ui.status(saga_notice+"\nL’avversario prepara il lancio" if not saga_notice.is_empty() and attempts==[0,0] else "L’avversario prepara il lancio")
@@ -511,7 +559,7 @@ func roll() -> void:
 	attempts[side] += 1
 	camera_goal = GAME_CAMERA * .965
 	look_goal = MATCH_TARGET.lerp(Vector3(0,0,table.BOWL_Z[side]),.09)
-	ui.status("Lancio %d di %d" % [attempts[side],max_throws] if side == 0 else "Lancio avversario")
+	ui.status(("Lancio %d di %d" % [attempts[side],max_throws]) if (side == 0 or hotseat) else "Lancio avversario")
 	var center := Vector3(0,table.FLOOR_Y,table.BOWL_Z[side])
 	sound("roll",center,.75)
 	pending = []
@@ -557,13 +605,14 @@ func roll() -> void:
 	if lan and lan.active and side==1 and attempts[side]<max_throws:
 		phase="remote_select"
 		ui.status("Il rivale sceglie i dadi")
-	elif side == 1 or attempts[side] == max_throws:
+	elif (side == 1 and not hotseat) or attempts[side] == max_throws:
 		var keep := opponent.keep(rules,side,pending,attempts[side]==max_throws)
 		commit(keep)
 	else:
 		phase = "select"
-		ui.action("Seleziona i dadi da tenere", "Conferma", confirm_selection)
-		if hints_on:
+		acting = side
+		ui.action(("%s: seleziona i dadi da tenere" % player_names[side]) if hotseat else "Seleziona i dadi da tenere", "Conferma", confirm_selection)
+		if hints_on and not hotseat:
 			suggest_keep()
 
 # Suggerimento: pre-seleziona i dadi che il bot sceglierebbe al tuo posto. Puoi cambiarli prima di confermare.
@@ -583,7 +632,7 @@ func measure_spacing(active: Array) -> void:
 func confirm_selection() -> void:
 	if phase != "select":
 		return
-	var kept := pending.filter(func(d):return cubes[0][d.id].selected)
+	var kept := pending.filter(func(d):return cubes[acting][d.id].selected)
 	if lan and lan.is_guest():
 		lan.command("keep",{"ids":kept.map(func(d):return d.id)})
 		if not integration:
@@ -634,6 +683,7 @@ func sorting_stage(ticket: int) -> void:
 	if ticket != generation:
 		return
 	phase = "favor"
+	acting = 0
 	ui.set_stage(2)
 	ui.favor_stage()
 
@@ -661,7 +711,7 @@ func row_position(side: int, index: int) -> Vector3:
 
 func inspect_favor(side: int, id: String) -> void:
 	if phase in ["favor","select","roll","target"]:
-		ui.favor_popup(id,side == 0 and phase == "favor")
+		ui.favor_popup(id,side == acting and phase == "favor")
 
 func pick_favor(id: String, level: int, sacrifice: int) -> void:
 	if phase != "favor":
@@ -691,12 +741,28 @@ func resolve(plan: Dictionary) -> void:
 		return
 	if phase not in ["favor","target"]:
 		return
+	var rival_plan := {}
+	if hotseat:
+		if not hotseat_has_plan:
+			# Il primo giocatore ha scelto: si passa il dispositivo, senza mostrare la scelta.
+			hotseat_plan = plan.duplicate(true)
+			hotseat_has_plan = true
+			phase = "handoff"
+			ui.handoff(player_names[1],func():
+				acting = 1
+				phase = "favor"
+				ui.favor_stage())
+			return
+		rival_plan = plan
+		plan = hotseat_plan
+		hotseat_has_plan = false
+		acting = 0
 	combat_uses.clear()
 	var ticket := generation
 	phase = "busy"
 	visual_hp = rules.hp.duplicate()
 	visual_gold = rules.gold.duplicate()
-	var enemy: Dictionary = network_enemy_plan if network_resolving else opponent.favor(rules,1,bot_loadout)
+	var enemy: Dictionary = rival_plan if hotseat else (network_enemy_plan if network_resolving else opponent.favor(rules,1,bot_loadout))
 	var events: Array = rules.resolve([plan,enemy])
 	if not integration:
 		stats_store.events(rules.round_no,events)
@@ -983,7 +1049,7 @@ func interact_die_or_favor(obj: Node3D, inspect: bool) -> void:
 		return
 	if inspect or (portrait and ui.inspect_mode and phase != "target"):
 		ui.inspect_die(obj.die_id,obj.face)
-	elif phase == "select" and obj.side == 0 and not obj.committed and pending.any(func(d):return d.id == obj.die_id):
+	elif phase == "select" and obj.side == acting and not obj.committed and pending.any(func(d):return d.id == obj.die_id):
 		obj.select(not obj.selected)
 		raycast_hits += 1
 		sound("select",obj.position)
@@ -1003,6 +1069,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			interact_at(event.position,event.button_index==MOUSE_BUTTON_RIGHT)
 	elif event is InputEventKey and event.pressed and not event.echo:
 		var action := Bindings.action_for(event)
+		if action == "back" and ui.hub != null and ui.hub.visible and ui.hub.page_state.get("overlay",false):
+			ui.hub.close_overlay()
+			return
 		if action == "fullscreen":
 			toggle_fullscreen()
 			return
@@ -1031,14 +1100,14 @@ func toggle_die_key(die_id: int) -> void:
 	if phase != "select":
 		return
 	for obj in pending:
-		if obj.die_id == die_id and obj.side == 0:
+		if obj.die_id == die_id and obj.side == acting:
 			interact_die_or_favor(obj,false)
 			return
 
 # Apre la tattica del totem indicato (tasti Q W E), come un clic sul totem.
 func open_tactic_key(slot: int) -> void:
-	if table.figures.size() > 0 and slot < table.figures[0].size():
-		interact_die_or_favor(table.figures[0][slot],false)
+	if table.figures.size() > acting and slot < table.figures[acting].size():
+		interact_die_or_favor(table.figures[acting][slot],false)
 
 func toggle_fullscreen() -> void:
 	if Platform.pc_available() and not pc.is_empty():
@@ -1051,8 +1120,6 @@ func toggle_fullscreen() -> void:
 func go_back() -> void:
 	if is_instance_valid(ui.context_popup):
 		ui.close_context()
-	elif ui.pass_panel:
-		ui.close_pass()
 	elif is_instance_valid(ui.dialog):
 		if phase not in ["coin","end"]:
 			ui.close_dialog()
@@ -1068,6 +1135,9 @@ func _notification(what: int) -> void:
 func menu() -> void:
 	if stats_store and not integration:stats_store.interrupt()
 	if lan and lan.role!="":lan.close()
+	hotseat = false
+	acting = 0
+	player_names = ["Tu","Avversario"]
 	network_resolving=false
 	network_advancing=false
 	saga_run.clear()

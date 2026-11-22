@@ -10,3 +10,4 @@ trap 'kill $TRACKER 2>/dev/null' EXIT
 sleep 1
 "$GODOT" --headless --path . -s tests/online_test.gd || exit 1
 "$GODOT" --headless --fixed-fps 120 --path . -s tests/online_match_test.gd -- --lan-favors
+"$GODOT" --headless --path . -s tests/friends_test.gd || exit 1

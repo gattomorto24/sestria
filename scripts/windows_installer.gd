@@ -353,97 +353,93 @@ static func handle_command_line(tree: SceneTree) -> bool:
 		return true
 	return false
 
-# ---- Interfaccia ----
+# ---- Interfaccia (nuovo stile rustico: scripts/hub) ----
 
-# Sezione «Launcher» della pagina Sistema. `settings` è l'istanza di pc_settings.gd.
-static func build_section(settings: RefCounted, parent: Node) -> void:
-	var ui: Control = settings.ui
-	settings.heading(parent,"LAUNCHER PER WINDOWS")
+const Kit = preload("res://scripts/hub/kit.gd")
+
+# Sezione «Launcher» della scheda Sistema. `hub` è il menu principale (scripts/hub/hub.gd).
+static func build_section(hub: Control, parent: Node) -> void:
+	Kit.title(parent,"Launcher per Windows",22)
 	if running_installed():
-		settings.note(parent,"SESTRIA è installata su questo computer: la trovi sul desktop, nel menu Start e in «App installate». I tuoi progressi sono al sicuro anche se la disinstalli.")
-		ui.button(parent,"Disinstalla SESTRIA",func():show_uninstall(settings))
+		Kit.paragraph(parent,"SESTRIA è installata su questo computer: la trovi sul desktop, nel menu Start e in «App installate». I tuoi progressi sono al sicuro anche se la disinstalli.",0.0,16,Kit.MUTED)
+		Kit.button(parent,"Disinstalla SESTRIA",func():show_uninstall(hub),"danger",260)
 	elif not installed_dir().is_empty():
-		settings.note(parent,"SESTRIA è già installata in %s. Puoi aggiornarla con questa versione." % to_windows(installed_dir()))
-		ui.button(parent,"AGGIORNA L'INSTALLAZIONE",func():show_wizard(settings,{"dir":installed_dir()}),0,true)
+		Kit.paragraph(parent,"SESTRIA è già installata in %s. Puoi aggiornarla con questa versione." % to_windows(installed_dir()),0.0,16,Kit.MUTED)
+		Kit.button(parent,"AGGIORNA L'INSTALLAZIONE",func():show_wizard(hub,{"dir":installed_dir()}),"primary",300)
 	else:
-		settings.note(parent,"Trasforma questa cartella in un'app vera: SESTRIA si installa sul tuo computer con il collegamento sul desktop e nel menu Start, e si disinstalla da «App installate». Non servono diritti di amministratore.")
-		ui.button(parent,"INSTALLA IL LAUNCHER",func():show_wizard(settings,{}),0,true)
+		Kit.paragraph(parent,"Trasforma questa cartella in un'app vera: SESTRIA si installa sul tuo computer con il collegamento sul desktop e nel menu Start, e si disinstalla da «App installate». Non servono diritti di amministratore.",0.0,16,Kit.MUTED)
+		Kit.button(parent,"INSTALLA IL LAUNCHER",func():show_wizard(hub,{}),"primary",300)
 
-static func show_wizard(settings: RefCounted, state: Dictionary, step := 0) -> void:
-	var ui: Control = settings.ui
+static func show_wizard(hub: Control, state: Dictionary, step := 0) -> void:
 	state.merge({"dir":default_install_dir(),"desktop":true,"start_menu":true,"launch":true},false)
-	var body: VBoxContainer = ui.modal("Installa SESTRIA",640)
+	var body: VBoxContainer = hub.modal("Installa SESTRIA",640)
 	match step:
 		0:
-			ui.label(body,"PASSO 1 DI 3 · BENVENUTO",15,ui.GOLD,true)
-			settings.note(body,"Questa procedura installa SESTRIA sul computer, così diventa un gioco con il suo launcher: icona sul desktop, voce nel menu Start, disinstallazione da «App installate». I salvataggi e le impostazioni restano gli stessi.")
-			ui.button(body,"AVANTI",func():show_wizard(settings,state,1),0,true)
-			ui.button(body,"Annulla",func():settings.show_page("sistema"))
+			Kit.label(body,"PASSO 1 DI 3 · BENVENUTO",14,Kit.EMBER_LIGHT,false,700)
+			Kit.paragraph(body,"Questa procedura installa SESTRIA sul computer, così diventa un gioco con il suo launcher: icona sul desktop, voce nel menu Start, disinstallazione da «App installate». I salvataggi e le impostazioni restano gli stessi.",0.0,16,Kit.MUTED)
+			var line := Kit.row(body,10)
+			Kit.button(line,"AVANTI",func():show_wizard(hub,state,1),"primary")
+			Kit.button(line,"Annulla",hub.close_modal,"ghost")
 		1:
-			ui.label(body,"PASSO 2 DI 3 · SCELTE",15,ui.GOLD,true)
-			ui.label(body,"Cartella: "+to_windows(state.dir),15,ui.IVORY)
+			Kit.label(body,"PASSO 2 DI 3 · SCELTE",14,Kit.EMBER_LIGHT,false,700)
+			Kit.label(body,"Cartella: "+to_windows(state.dir),16,Kit.TEXT)
 			if DisplayServer.has_feature(DisplayServer.FEATURE_NATIVE_DIALOG_FILE):
-				ui.button(body,"Cambia cartella…",func():
+				Kit.button(body,"Cambia cartella…",func():
 					DisplayServer.file_dialog_show("Cartella di installazione",state.dir,"",false,DisplayServer.FILE_DIALOG_MODE_OPEN_DIR,PackedStringArray(),func(ok:bool,paths:PackedStringArray,_filter:int):
 						if ok and not paths.is_empty():
 							state.dir = paths[0].path_join(FOLDER) if not paths[0].get_file().to_lower() == FOLDER.to_lower() else paths[0]
-						show_wizard(settings,state,1)))
-			settings.toggle(body,"Collegamento sul desktop",state.desktop,func(v):
-				state.desktop = v
-				show_wizard(settings,state,1))
-			settings.toggle(body,"Voce nel menu Start",state.start_menu,func(v):
-				state.start_menu = v
-				show_wizard(settings,state,1))
-			settings.toggle(body,"Avvia SESTRIA al termine",state.launch,func(v):
-				state.launch = v
-				show_wizard(settings,state,1))
+						show_wizard(hub,state,1)),"secondary")
+			for entry in [["desktop","Collegamento sul desktop"],["start_menu","Voce nel menu Start"],["launch","Avvia SESTRIA al termine"]]:
+				var choice := Kit.setting_row(body,str(entry[1]))
+				Kit.toggle(choice,state[entry[0]],func(v):
+					state[entry[0]] = v
+					show_wizard(hub,state,1))
 			var problem := check(state.dir)
 			if not problem.is_empty():
-				ui.paragraph(body,problem,560).add_theme_color_override("font_color",ui.GOLD)
-			var go: Button = ui.button(body,"INSTALLA",func():show_wizard(settings,state,2),0,true)
+				Kit.paragraph(body,problem,0.0,15,Kit.EMBER_LIGHT)
+			var line := Kit.row(body,10)
+			var go := Kit.button(line,"INSTALLA",func():show_wizard(hub,state,2),"primary")
 			go.disabled = not problem.is_empty()
-			ui.button(body,"Indietro",func():show_wizard(settings,state,0))
+			Kit.button(line,"Indietro",func():show_wizard(hub,state,0),"ghost")
 		2:
-			ui.label(body,"PASSO 3 DI 3 · INSTALLAZIONE",15,ui.GOLD,true)
-			var status: Label = ui.label(body,"Preparazione…",16,ui.IVORY)
-			var bar := ProgressBar.new()
-			bar.max_value = 1.0
-			bar.show_percentage = false
-			bar.custom_minimum_size.y = 14
-			body.add_child(bar)
-			run_install.call_deferred(settings,state,status,bar)
+			Kit.label(body,"PASSO 3 DI 3 · INSTALLAZIONE",14,Kit.EMBER_LIGHT,false,700)
+			var status := Kit.label(body,"Preparazione…",17,Kit.TEXT)
+			var bar := Kit.meter(body,0.0,1.0,18)
+			run_install.call_deferred(hub,state,status,bar)
 
-static func run_install(settings: RefCounted, state: Dictionary, status: Label, bar: ProgressBar) -> void:
-	var ui: Control = settings.ui
-	var tree: SceneTree = ui.get_tree()
+static func run_install(hub: Control, state: Dictionary, status: Label, bar: Control) -> void:
+	var tree: SceneTree = hub.get_tree()
 	await tree.process_frame
 	var report := func(part: float, text: String):
 		if is_instance_valid(bar):
-			bar.value = part
+			bar.set_value(part,1.0)
 			status.text = text
 	var result := install(state.dir,state,report)
 	await tree.process_frame
-	var body: VBoxContainer = ui.modal("Installazione completata" if result.ok else "Installazione non riuscita",640)
-	ui.paragraph(body,str(result.message),580)
+	var body: VBoxContainer = hub.modal("Installazione completata" if result.ok else "Installazione non riuscita",640)
+	Kit.paragraph(body,str(result.message),0.0,16,Kit.MUTED)
+	var line := Kit.row(body,10)
 	if result.ok:
+		Kit.sfx("seal")
 		if state.launch:
-			ui.button(body,"AVVIA SESTRIA",func():launch_installed(ui,result.exe),0,true)
-		ui.button(body,"Chiudi",func():settings.show_page("sistema"))
+			Kit.button(line,"AVVIA SESTRIA",func():launch_installed(hub,result.exe),"primary")
+		Kit.button(line,"Chiudi",func():hub.navigate("options",{"tab":"system"}),"secondary")
 	else:
-		ui.button(body,"Riprova",func():show_wizard(settings,state,1),0,true)
-		ui.button(body,"Chiudi",func():settings.show_page("sistema"))
+		Kit.sfx("error")
+		Kit.button(line,"Riprova",func():show_wizard(hub,state,1),"primary")
+		Kit.button(line,"Chiudi",hub.close_modal,"ghost")
 
-static func launch_installed(ui: Control, exe: String) -> void:
+static func launch_installed(hub: Control, exe: String) -> void:
 	OS.create_process(exe,[])
-	ui.get_tree().quit()
+	hub.get_tree().quit()
 
-static func show_uninstall(settings: RefCounted) -> void:
-	var ui: Control = settings.ui
-	var body: VBoxContainer = ui.modal("Disinstalla SESTRIA",600)
-	settings.note(body,"Verranno rimossi il gioco installato, il collegamento sul desktop, la voce nel menu Start e la voce in «App installate». I salvataggi, le statistiche e le impostazioni restano nel tuo profilo. Il gioco si chiuderà.")
-	ui.button(body,"DISINSTALLA",func():
+static func show_uninstall(hub: Control) -> void:
+	var body: VBoxContainer = hub.modal("Disinstalla SESTRIA",600)
+	Kit.paragraph(body,"Verranno rimossi il gioco installato, il collegamento sul desktop, la voce nel menu Start e la voce in «App installate». I salvataggi, le statistiche e le impostazioni restano nel tuo profilo. Il gioco si chiuderà.",0.0,16,Kit.MUTED)
+	var line := Kit.row(body,10)
+	Kit.button(line,"DISINSTALLA",func():
 		if start_uninstall():
-			ui.get_tree().quit()
+			hub.get_tree().quit()
 		else:
-			settings.show_page("sistema"),0,true)
-	ui.button(body,"Annulla",func():settings.show_page("sistema"))
+			hub.close_modal(),"danger")
+	Kit.button(line,"Annulla",hub.close_modal,"ghost")

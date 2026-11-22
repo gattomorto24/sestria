@@ -521,6 +521,41 @@ static func seal(parent: Node, text: String, side := 44.0) -> Control:
 		parent.add_child(holder)
 	return holder
 
+# Cursore con scanalatura di legno e pomello d'ottone. `callback(valore)`.
+static func slider(parent: Node, low: float, high: float, step: float, value: float, callback: Callable) -> HSlider:
+	var control := HSlider.new()
+	control.min_value = low
+	control.max_value = high
+	control.step = step
+	control.value = value
+	control.focus_mode = Control.FOCUS_NONE
+	control.custom_minimum_size = Vector2(scale(180),scale(30))
+	control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	control.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	control.add_theme_stylebox_override("slider",tex_style("xp_groove",10,0))
+	control.add_theme_stylebox_override("grabber_area",tex_style("xp_fill",8,0))
+	control.add_theme_stylebox_override("grabber_area_highlight",tex_style("xp_fill",8,0))
+	var knob := tex("knob")
+	control.add_theme_icon_override("grabber",knob)
+	control.add_theme_icon_override("grabber_highlight",knob)
+	control.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	control.value_changed.connect(callback)
+	if parent:
+		parent.add_child(control)
+	return control
+
+# Selettore con frecce per molte opzioni: «‹ valore ›».
+static func stepper(parent: Node, names: Array, index: int, callback: Callable, minimum := 220.0) -> HBoxContainer:
+	var line := row(parent,6)
+	var back := button(line,"‹",func():callback.call((index-1+names.size())%names.size()),"secondary")
+	back.custom_minimum_size.x = scale(48)
+	var shown := label(line,str(names[clampi(index,0,names.size()-1)]),17,EMBER_LIGHT,false,700)
+	shown.custom_minimum_size.x = scale(minimum)
+	shown.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var forward := button(line,"›",func():callback.call((index+1)%names.size()),"secondary")
+	forward.custom_minimum_size.x = scale(48)
+	return line
+
 static func format_number(value: int) -> String:
 	var text := str(absi(value))
 	var out := ""

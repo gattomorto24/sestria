@@ -36,6 +36,7 @@ func _initialize() -> void:
 	make_fill("xp_fill",256,22)
 	make_divider("divider",320,20)
 	make_wood_plank("plank",128,128)
+	make_knob("knob",36)
 	print("PELLE RUSTICA | texture generate in ",OUT)
 	quit()
 
@@ -325,4 +326,24 @@ func make_divider(name: String, w: int, h: int) -> void:
 				if dx+dy > 5.5:
 					c = Color("#2a1608")
 				image.set_pixel(x,y,c)
+	save(image,name)
+
+func make_knob(name: String, s: int) -> void:
+	var image := Image.create(s,s,false,Image.FORMAT_RGBA8)
+	var c0 := Vector2(s*.5,s*.5)
+	for y in s:
+		for x in s:
+			var p := Vector2(x,y)-c0
+			var d := p.length()
+			if d > s*.47:
+				continue
+			var lit := clampf(.55-(p.x+p.y)/(s*1.2),0,1)
+			var c := mixc(Color("#9b6a22"),Color("#ffd98a"),lit)
+			c = shade(c,.94+fine_noise.get_noise_2d(x*1.4,y*1.4)*.12)
+			if d > s*.40:
+				c = Color("#1a0d05")
+			elif d > s*.34:
+				c = shade(c,.7)
+			image.set_pixel(x,y,c)
+	rivet(image,s*.5,s*.5,s*.12)
 	save(image,name)

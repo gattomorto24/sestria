@@ -7,6 +7,7 @@ const Profile = preload("res://scripts/hub/profile_store.gd")
 const VIGNETTE = preload("res://assets/ui/hub_vignette.gdshader")
 const TORCH = preload("res://assets/ui/hub_torch.gdshader")
 const Audio = preload("res://scripts/hub/hub_audio.gd")
+const Rules = preload("res://scripts/rules.gd")
 const PAGES := ["campaign","multiplayer","friends","progress","options"]
 const PAGE_NAMES := {"campaign":"Campagna","multiplayer":"Multigiocatore","friends":"Amici","progress":"Progressi","options":"Opzioni"}
 const SCRIPTS := {"campaign":"res://scripts/hub/page_campaign.gd","multiplayer":"res://scripts/hub/page_multiplayer.gd","friends":"res://scripts/hub/page_friends.gd","progress":"res://scripts/hub/page_progress.gd","options":"res://scripts/hub/page_options.gd"}
@@ -24,6 +25,8 @@ var player_card: Control
 var toast_label: Label
 var toast_tween: Tween
 var audio: Node
+var network_note := ""
+var stage: Control
 
 func setup(owner_game: Node3D, interface: Control, is_portrait: bool) -> void:
 	game = owner_game
@@ -46,15 +49,22 @@ func setup(owner_game: Node3D, interface: Control, is_portrait: bool) -> void:
 	add_child(torch)
 	torch.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(make_embers())
+	stage = Control.new()
+	stage.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(stage)
+	stage.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	audio = Audio.new()
 	add_child(audio)
 	audio.setup(game)
 	Kit.audio = audio
 	visibility_changed.connect(func():
-		if visible:
+		var menu_open: bool = visible and not page_state.get("overlay",false)
+		if menu_open:
 			audio.start_music()
 		else:
-			audio.stop_music())
+			audio.stop_music()
+		if game.friends != null:
+			game.friends.activate(menu_open))
 
 func make_embers() -> CPUParticles2D:
 	var embers := CPUParticles2D.new()
@@ -80,8 +90,32 @@ func make_embers() -> CPUParticles2D:
 	embers.z_index = 5
 	return embers
 
+# Gli aggiornamenti cambiano stato in background: se la pagina Sistema è aperta, si ricostruisce.
+func refresh_updates() -> void:
+	if visible and page == "options" and str(page_state.get("tab","")) == "system" and not is_instance_valid(modal_layer):
+		var message := find_child("UpdateMessage",true,false)
+		if message and game.updater and game.updater.state in ["downloading","verifying"]:
+			message.text = str(game.updater.message)
+			var meter := find_child("UpdateMeter",true,false)
+			if meter:
+				meter.set_value(game.updater.progress,1.0)
+			return
+		rebuild_deferred()
+
+func rebuild_deferred() -> void:
+	if has_meta("rebuild_pending"):
+		return
+	set_meta("rebuild_pending",true)
+	await get_tree().process_frame
+	remove_meta("rebuild_pending")
+	if visible:
+		rebuild()
+
 # Apre il menu su una pagina. `state` passa dati alla pagina (ad esempio la sotto-scheda).
 func open(wanted := "", state := {}) -> void:
+	if wanted == "" and not has_meta("opened_once"):
+		wanted = game.start_page
+		set_meta("opened_once",true)
 	if wanted != "":
 		page = wanted if PAGES.has(wanted) else "campaign"
 	page_state = state
@@ -89,19 +123,20 @@ func open(wanted := "", state := {}) -> void:
 	rebuild()
 
 func rebuild() -> void:
-	for child in get_children():
-		if child is ColorRect:
-			continue
+	for child in stage.get_children():
 		child.queue_free()
 	modal_layer = null
-	var inset := Kit.margin(self,22,18,22,18) if not portrait else Kit.margin(self,14,10,14,10)
+	var inset := Kit.margin(stage,22,18,22,18) if not portrait else Kit.margin(stage,14,10,14,10)
 	inset.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var frame := Kit.column(inset,16)
 	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if portrait and ui.has_method("safe_margins"):
 		inset.add_theme_constant_override("margin_top",roundi(ui.safe_margins().x)+8)
 		inset.add_theme_constant_override("margin_bottom",roundi(ui.safe_margins().y)+8)
-	build_top_bar(frame)
+	if page_state.get("overlay",false):
+		build_overlay_bar(frame)
+	else:
+		build_top_bar(frame)
 	content = Kit.column(frame,0)
 	content.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -115,11 +150,70 @@ func load_page() -> void:
 	var script: GDScript = load(SCRIPTS[page])
 	script.build(self,content)
 
+# Se si lascia la scheda con una stanza LAN o online aperta e non iniziata, la stanza si chiude.
+func leave_room_if_needed() -> void:
+	if game.lan and not game.lan.started and game.lan.role != "":
+		game.lan.close()
+
+# Aggiornamento della rete (stanze trovate, ospite arrivato): si ricostruisce la scheda Multigiocatore.
+func refresh_network() -> void:
+	if visible and page == "multiplayer" and not is_instance_valid(modal_layer):
+		rebuild_deferred()
+
+func refresh_friends() -> void:
+	if visible and page == "friends" and not is_instance_valid(modal_layer):
+		rebuild_deferred()
+	elif visible and page != "friends":
+		toast("Novità tra i tuoi amici")
+		Kit.sfx("tab")
+
+# Un amico ti invita a una partita: entra con il suo codice o rifiuta.
+func friend_invited(from_name: String, code: String) -> void:
+	if not visible:
+		return
+	Kit.sfx("confirm")
+	var body := modal("%s ti invita a giocare" % from_name,520)
+	Kit.paragraph(body,"Ha aperto una stanza online e ti ha mandato il codice invito. Vuoi entrare?",0.0,16,Kit.MUTED)
+	var line := Kit.row(body,10)
+	Kit.button(line,"ENTRA",func():
+		close_modal()
+		navigate("multiplayer",{"sub":"online"})
+		game.lan.join_online_invite(code),"primary")
+	Kit.button(line,"Rifiuta",close_modal,"ghost")
+
+func network_problem(message: String) -> void:
+	network_note = message
+	Kit.sfx("error")
+	if visible and page == "multiplayer":
+		rebuild_deferred()
+		toast(message)
+
 func navigate(wanted: String, state := {}) -> void:
+	if page == "multiplayer" and wanted != "multiplayer":
+		leave_room_if_needed()
 	page = wanted
 	page_state = state
 	close_modal()
 	rebuild()
+
+# Impostazioni aperte durante la partita: solo un titolo e il ritorno al tavolo.
+func build_overlay_bar(parent: Control) -> void:
+	var bar := Kit.panel(parent,"bar",14)
+	var line := Kit.row(bar,18)
+	Kit.button(line,"‹  Torna alla partita",close_overlay,"primary")
+	Kit.spacer(line)
+	Kit.title(line,"Impostazioni",30)
+	Kit.spacer(line)
+	build_brand(line,44)
+
+func close_overlay() -> void:
+	Kit.sfx("back")
+	page_state = {}
+	visible = false
+	if audio:
+		audio.stop_music()
+	if ui and is_instance_valid(ui.dialog) == false and game.phase == "menu":
+		ui.show_menu()
 
 # ---- Barra superiore ----
 
@@ -285,6 +379,57 @@ func toast(message: String) -> void:
 	toast_tween = create_tween()
 	toast_tween.tween_interval(2.6)
 	toast_tween.tween_property(toast_label,"modulate:a",0.0,.5)
+
+# ---- Regole e tattiche ----
+
+func show_rules() -> void:
+	var body := modal("Come si gioca",640)
+	var text: String = ui.RULES_TEXT
+	if portrait:
+		text = text.replace("Clic su un dado per tenerlo. Clic destro per ispezionarlo. Clic sui totem per consultare o attivare una tattica.","Tocca un dado sul tavolo o nella barra per tenerlo. Attiva Ispeziona e tocca un dado per vedere le facce. Tocca i totem per consultare o attivare una tattica.")
+	Kit.paragraph(body,text,0.0,17,Kit.MUTED)
+	Kit.button(body,"Chiudi",close_modal,"primary")
+
+# Sceglie le tre tattiche (totem) con cui si gioca: si sceglie un posto e poi la tattica da mettervi.
+func show_tactics(slot := 0) -> void:
+	var body := modal("Le tue tattiche",1000)
+	Kit.paragraph(body,"Scegli un posto e poi la tattica da metterci. Le tattiche agiscono per priorità: le prime precedono i dadi, le ultime possono spendere i gettoni appena guadagnati.",0.0,16,Kit.MUTED)
+	var slots: BoxContainer = Kit.row(body,10) if not portrait else Kit.column(body,8)
+	for i in 3:
+		var id: String = game.equipped[i]
+		var card := Kit.card(slots,"Posto %d · %s" % [i+1,Rules.FAVOR[id][0]],str(Rules.FAVOR[id][4]) % Rules.FAVOR[id][3][0],i == slot,func():show_tactics(i),Kit.EMBER)
+		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var grid := GridContainer.new()
+	grid.columns = 2 if portrait else 4
+	grid.add_theme_constant_override("h_separation",roundi(Kit.scale(10)))
+	grid.add_theme_constant_override("v_separation",roundi(Kit.scale(10)))
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body.add_child(grid)
+	var ids := Rules.FAVOR.keys()
+	for index in ids.size():
+		var id: String = ids[index]
+		var data: Array = Rules.FAVOR[id]
+		var equipped_here: bool = game.equipped.has(id)
+		var card := Kit.card(grid,str(data[0]),"Priorità %d · %d / %d / %d gettoni" % [data[1],data[2][0],data[2][1],data[2][2]],equipped_here,func():
+			var old: int = game.equipped.find(id)
+			if old >= 0:
+				game.equipped[old] = game.equipped[slot]
+			game.equipped[slot] = id
+			game.save_settings()
+			Kit.sfx("click")
+			show_tactics(slot),Kit.MOSS)
+		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var head: Control = card.get_child(0).get_child(0)
+		var icon := TextureRect.new()
+		icon.texture = load("res://assets/icons/favor_%02d.svg" % index)
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.custom_minimum_size = Vector2(Kit.scale(26),Kit.scale(26))
+		icon.modulate = Color(.25,.14,.06)
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		head.add_child(icon)
+		head.move_child(icon,0)
+	Kit.button(body,"Fatto",close_modal,"primary")
 
 # ---- Profilo ----
 

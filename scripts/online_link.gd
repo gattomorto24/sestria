@@ -11,6 +11,7 @@ signal guest_arrived
 signal joined
 signal problem(message: String)
 signal state_changed
+signal friend_message(peer, message)     # messaggi degli amici (richieste, presenza, inviti) su un canale aperto
 
 const PROTOCOL := 43
 const LOBBY := "SestriaLobbyP43A0001"
@@ -70,6 +71,7 @@ class Peer extends RefCounted:
 	var introduced := false
 	var probes := 0
 	var info := {}
+	var hello := {}              # messaggio da inviare appena il canale si apre (al posto della sonda)
 
 	func begin(ice: Array) -> bool:
 		pc = WebRTCPeerConnection.new()
@@ -358,6 +360,8 @@ func host_peer_message(peer: Peer, message: Dictionary) -> void:
 			status = "Un giocatore è entrato."
 			guest_arrived.emit.call_deferred()
 			notify_state()
+	elif op == "friend":
+		friend_message.emit(peer,message)
 	elif op != "ping":
 		peer.close()
 
@@ -375,6 +379,26 @@ func browse() -> void:
 		make_batch(LOBBY,missing)
 	status = "Ricerca di stanze online…"
 	notify_state()
+
+# Amici: si resta in ascolto nello sciame personale (richieste e presenza in arrivo)...
+func listen(swarm: String) -> void:
+	if not supported():
+		return
+	start_role("host")
+	subscriptions[swarm] = true
+	status = "In ascolto."
+	notify_state()
+
+# ...e si bussa allo sciame di un amico con un messaggio da consegnare.
+func probe(swarm: String, hello: Dictionary) -> void:
+	if not supported():
+		return
+	if role != "browse":
+		start_role("browse")
+	make_batch(swarm,1,hello)
+
+func idle() -> bool:
+	return outgoing.is_empty() and batches.is_empty()
 
 func join_invite(text: String) -> Error:
 	var code := normalize_invite(text)
@@ -403,12 +427,13 @@ func join_room(remote: String) -> Error:
 	notify_state()
 	return OK
 
-func make_batch(swarm: String, count: int) -> void:
+func make_batch(swarm: String, count: int, hello := {}) -> void:
 	var batch := {"swarm":swarm,"peers":[],"born":Time.get_ticks_msec(),"sent":false}
 	for i in count:
 		var peer := Peer.new()
 		peer.kind = "out"
 		peer.swarm = swarm
+		peer.hello = hello
 		peer.offer_id = random_text(20)
 		if peer.make_offer(stun):
 			batch.peers.append(peer)
@@ -469,6 +494,8 @@ func guest_peer_message(peer: Peer, message: Dictionary) -> void:
 	elif op == "error":
 		joining = null
 		fail(clean_name(message.get("message","Errore")))
+	elif op == "friend":
+		friend_message.emit(peer,message)
 	elif op != "ping" and op != "card" and op != "ok" and op != "busy":
 		peer.close()
 
@@ -603,7 +630,9 @@ func step_outgoing(peer: Peer, now: int) -> void:
 	elif peer.phase == "open":
 		if not peer.introduced:
 			peer.introduced = true
-			if role == "invite":
+			if not peer.hello.is_empty():
+				peer.send(peer.hello)
+			elif role == "invite":
 				joining = peer
 				peer.send({"o":"join","v":PROTOCOL})
 			else:

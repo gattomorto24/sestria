@@ -92,6 +92,7 @@ static func build_detail(hub: Control, parent: VBoxContainer, campaign: Dictiona
 	var actions := Kit.row(parent,10)
 	var play := Kit.button(actions,"CONTINUA LA CAMPAGNA",func():game.start_campaign(str(campaign.id)),"primary",260)
 	play.custom_minimum_size.y = Kit.scale(54)
+	Kit.button(actions,"Tattiche",func():hub.show_tactics(),"secondary")
 	Kit.button(actions,"Rinomina",func():rename(hub,campaign),"secondary")
 	Kit.button(actions,"Elimina",func():
 		hub.confirm("Eliminare la campagna?","«%s» e i suoi progressi verranno cancellati. L'XP già guadagnato resta tuo." % campaign.name,"Elimina",func():
@@ -126,8 +127,10 @@ static func build_quick(hub: Control, parent: VBoxContainer) -> void:
 		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var run: Dictionary = game.progression.create_run(game.difficulty)
 	Kit.paragraph(parent,"%s · avversario di livello %d · premio per la vittoria: %d XP" % [game.progression.TITLES[run.tier],int(run.ai_level)+1,game.progression.victory_xp(run)],0.0,15,Kit.EMBER_LIGHT)
-	var play := Kit.button(parent,"GIOCA ORA",func():game.start_quick(),"primary",240)
+	var line := Kit.row(parent,10)
+	var play := Kit.button(line,"GIOCA ORA",func():game.start_quick(),"primary",240)
 	play.custom_minimum_size.y = Kit.scale(54)
+	Kit.button(line,"Tattiche",func():hub.show_tactics(),"secondary")
 
 # ---- Nuova campagna ----
 

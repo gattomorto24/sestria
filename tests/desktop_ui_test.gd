@@ -1,12 +1,10 @@
 extends SceneTree
-# Collaudo visivo e funzionale dell'interfaccia desktop orizzontale.
+# Collaudo del nuovo menu (scheda Campagna, Multigiocatore, Amici, Progressi, Opzioni) e del tavolo.
 # Con una finestra reale salva schermate in build/desktop; in modalità headless controlla solo la struttura.
+const Store = preload("res://scripts/hub/campaign_store.gd")
 var game: Node3D
 var failures := 0
 var capture := false
-
-func _initialize() -> void:
-	call_deferred("run")
 
 func check(condition: bool, message: String) -> void:
 	if not condition:
@@ -29,6 +27,9 @@ func inside(control: Control, message: String) -> void:
 	var view := root.get_visible_rect()
 	check(area.position.x >= -1 and area.position.y >= -1 and area.end.x <= view.size.x+1 and area.end.y <= view.size.y+1,message+": "+str(area)+" in "+str(view.size))
 
+func buttons(node: Node, text: String) -> Array:
+	return node.find_children("*","Button",true,false).filter(func(b):return b.text == text)
+
 func run() -> void:
 	capture = DisplayServer.get_name() != "headless"
 	if capture:
@@ -39,62 +40,71 @@ func run() -> void:
 	game.music.stop()
 	if game.lan and game.lan.online:
 		game.lan.online.configure([])
-	await snapshot("menu")
-	check(not game.portrait,"Interfaccia desktop orizzontale")
+	await settle()
+	var hub: Control = game.ui.hub
+	check(hub != null and hub.visible and not game.portrait,"Menu aperto, interfaccia orizzontale")
+	for name in ["Campagna","Multigiocatore","Amici","Progressi","Opzioni"]:
+		check(not buttons(hub.stage,name).is_empty() or not buttons(hub.stage,name+" •").is_empty(),"Scheda "+name)
+	check(game.profile != null and game.campaigns != null,"Profilo e campagne caricati")
+	await snapshot("hub-campaign")
+	# Campagna: nuova campagna, dieci impostazioni, partita al volo
+	hub.navigate("campaign",{"view":"new","draft":{"name":"Prova","difficulty":1,"settings":Store.default_settings()}})
+	await snapshot("hub-new")
+	check(not buttons(hub.stage,"CREA E INIZIA").is_empty(),"Pulsante di creazione della campagna")
+	check(hub.stage.find_children("*","Button",true,false).filter(func(b):return b.text in ["3 lanci","Auto","Moneta","Aggressivo"]).size() >= 4,"Le dieci impostazioni sono presenti")
+	hub.navigate("campaign",{"selected":"quick"})
+	check(not buttons(hub.stage,"GIOCA ORA").is_empty(),"Partita al volo")
+	await snapshot("hub-quick")
+	# Multigiocatore
+	for sub in ["device","lan","online"]:
+		hub.navigate("multiplayer",{"sub":sub})
+		await snapshot("hub-multi-"+sub)
+	hub.navigate("multiplayer",{"sub":"device"})
+	check(not buttons(hub.stage,"INIZIA LA PARTITA").is_empty(),"Passa e gioca")
+	hub.navigate("multiplayer",{"sub":"lan"})
+	game.lan.rooms["192.168.1.9"] = {"ip":"192.168.1.9","name":"Prova","code":"123456","seen":Time.get_ticks_msec()}
+	hub.navigate("multiplayer",{"sub":"lan"})
+	await settle()
+	check(hub.stage.find_children("*","Label",true,false).any(func(l):return l.text == "Prova"),"Stanza LAN vicina mostrata")
+	game.lan.rooms.clear()
+	hub.navigate("multiplayer",{"sub":"device"})
+	check(game.lan.role == "","Lasciando la scheda non resta nessuna stanza")
+	# Amici, Progressi
+	hub.navigate("friends",{})
+	await snapshot("hub-friends")
+	hub.navigate("progress",{})
+	await snapshot("hub-progress")
+	# Opzioni
 	OS.set_environment("SESTRIA_FAKE_WINDOWS","1")
-	var PCSettings = preload("res://scripts/pc_settings.gd")
-	var Installer = preload("res://scripts/windows_installer.gd")
-	var screens := {
-		"launcher-0":func():Installer.show_wizard(PCSettings.open(game.ui,game,"sistema"),{},0),
-		"launcher-1":func():Installer.show_wizard(PCSettings.open(game.ui,game,"sistema"),{},1),
-		"modes":game.ui.show_play_modes,"pass":game.ui.show_pass,"stats":game.ui.show_statistics,
-		"lan":game.ui.show_lan,"online":game.ui.show_online,"updates":game.ui.show_updates,"settings-info":func():game.ui.show_settings(3),"settings-screen":func():game.ui.show_settings(0),"settings-graphics":func():game.ui.show_settings(1),"settings-audio":func():preload("res://scripts/pc_settings.gd").open(game.ui,game,"audio"),"settings-keys":func():game.ui.show_settings(2),
-		"tactics":game.ui.show_equipped,"rules":game.ui.show_rules,"difficulty":game.ui.show_difficulty}
-	for key in screens:
-		screens[key].call()
-		await snapshot(key)
-		check(is_instance_valid(game.ui.dialog),"Apertura "+key)
-		inside(game.ui.dialog.find_children("*","PanelContainer",true,false)[0],"Finestra "+key)
-		game.ui.close_dialog()
-	check(game.lan.role=="","Chiudere la LAN rilascia la stanza")
-	# Aggiornamento dei contenuti: "Aggiorna", poi "Riavvia per applicare"; pacchetto completo: Download.
+	for tab in ["game","screen","graphics","audio","controls","system"]:
+		hub.navigate("options",{"tab":tab})
+		await snapshot("hub-options-"+tab)
 	var up: Node = game.updater
-	for case in [["available","content","AGGIORNA"],["available","package","SCARICA PACCHETTO COMPLETO"],["ready","content","RIAVVIA PER APPLICARE"],["ready","package","MOSTRA NELLA CARTELLA DOWNLOAD"]]:
+	for case in [["available","content","AGGIORNA"],["available","package","SCARICA IL PACCHETTO COMPLETO"],["ready","content","RIAVVIA PER APPLICARE"],["ready","package","MOSTRA NELLA CARTELLA DOWNLOAD"]]:
 		up.state = case[0]
 		up.release = {"mode":case[1],"version":"9.9","notes":"","page":"","name":"x"}
-		game.ui.show_updates()
+		hub.navigate("options",{"tab":"system"})
 		await settle()
-		var found: Array = game.ui.dialog.find_children("*","Button",true,false).filter(func(b):return b.text==case[2])
-		check(found.size()==1,"Pulsante «%s» per %s/%s" % [case[2],case[0],case[1]])
-		inside(game.ui.dialog.find_children("*","PanelContainer",true,false)[0],"Finestra aggiornamenti "+case[2])
-		game.ui.close_dialog()
+		check(buttons(hub.stage,case[2]).size() == 1,"Pulsante «%s» per %s/%s" % [case[2],case[0],case[1]])
 	up.state = "idle"
 	up.release = {}
-	# Una stanza trovata in rete si apre con un solo clic, senza digitare il codice.
-	game.lan.rooms["192.168.1.9"] = {"ip":"192.168.1.9","name":"Prova","code":"123456","seen":Time.get_ticks_msec()}
-	game.lan.rooms["192.168.1.10"] = {"ip":"192.168.1.10","name":"Vecchia","code":"","seen":Time.get_ticks_msec()}
-	game.ui.show_lan()
-	await snapshot("lan-rooms")
-	var direct: Array = game.ui.dialog.find_children("*","Button",true,false).filter(func(b):return b.text.begins_with("ENTRA"))
-	var manual: Array = game.ui.dialog.find_children("*","Button",true,false).filter(func(b):return b.text.ends_with("serve il codice"))
-	check(direct.size()==1 and manual.size()==1,"Stanze vicine: ingresso diretto e stanza senza codice")
-	game.ui.close_dialog()
-	game.lan.rooms.clear()
-	# La saga mostra un pannello Pass con la posizione di scorrimento conservata dopo ogni acquisto.
-	game.progression.data.xp = 5000
-	game.ui.show_pass()
-	await settle()
-	var scroll: ScrollContainer = game.ui.dialog.find_child("Scroll",true,false)
-	scroll.scroll_vertical = 220
-	await settle()
-	var before := scroll.scroll_vertical
-	check(before > 0,"Pass scorrevole su desktop")
-	game.ui.close_dialog()
-	game.progression.data.xp = 0
-	game.progression.data.ranks.clear()
-	game.ui.show_menu()
-	game.prepare()
+	var Installer = preload("res://scripts/windows_installer.gd")
+	Installer.show_wizard(hub,{},1)
+	await snapshot("hub-launcher")
+	check(not buttons(hub.modal_layer,"INSTALLA").is_empty(),"Procedura guidata del launcher")
+	hub.close_modal()
+	hub.show_tactics()
+	await snapshot("hub-tactics")
+	check(is_instance_valid(hub.modal_layer),"Finestra delle tattiche")
+	hub.close_modal()
+	hub.show_profile()
+	await snapshot("hub-profile")
+	check(is_instance_valid(hub.modal_layer),"Profilo")
+	hub.close_modal()
+	# Partita
+	game.start_quick()
 	await snapshot("coin")
+	check(not hub.visible,"Il menu si nasconde quando inizia la partita")
 	game.ui.close_dialog()
 	game.phase = "select"
 	game.ui.action("Tocca i dadi da tenere","Conferma",game.confirm_selection)
@@ -105,5 +115,13 @@ func run() -> void:
 	game.ui.close_dialog()
 	game.ui.inspect_die(0,2)
 	await snapshot("inspect")
-	print("DESKTOP UI | schermate, bordi, scroll e azione primaria | errori %d" % failures)
+	game.ui.show_settings(1)
+	check(hub.visible and hub.page_state.get("overlay",false),"Impostazioni sopra la partita")
+	await snapshot("settings-overlay")
+	hub.close_overlay()
+	check(not hub.visible,"Si torna alla partita")
+	print("DESKTOP UI | schede, campagne, multigiocatore, opzioni, aggiornamenti, launcher e tavolo | errori %d" % failures)
 	quit(1 if failures else 0)
+
+func _initialize() -> void:
+	call_deferred("run")

@@ -123,7 +123,14 @@ static func match_setup(campaign: Dictionary) -> Dictionary:
 	return {"campaign":str(campaign.id),"difficulty":base,"tier":tier,"ai_level":maxi(base,mini(tier,2)),"trials_extra":8 if tier == 3 else 0,
 		"enemy_gold":tier if bot_tokens < 0 else bot_tokens,"player_gold":int(settings.player_tokens),"first":str(settings.first),"throws":int(settings.throws),
 		"style":str(settings.bot_style),"tactics":str(settings.bot_tactics),"speed":str(settings.speed),"log":str(settings.log),
-		"hints":bool(settings.hints),"seed":(int(campaign.seed)*1009+int(campaign.chapter)*31) if settings.fixed_seed else 0,"chapter":int(campaign.chapter)}
+		"hints":bool(settings.hints),"seed":(int(campaign.seed)*1009+int(campaign.chapter)*31) if settings.fixed_seed else 0,"chapter":int(campaign.chapter),"xp_multiplier":xp_multiplier(settings)}
+
+# Impostazioni della partita al volo: solo regole e comodità, il livello del bot segue il tuo livello.
+static func quick_setup(raw: Dictionary, difficulty: int) -> Dictionary:
+	var settings := clean_settings(raw)
+	return {"quick":true,"difficulty":clampi(difficulty,0,2),"player_gold":int(settings.player_tokens),"bot_tokens":int(settings.bot_tokens),"first":str(settings.first),
+		"throws":int(settings.throws),"style":str(settings.bot_style),"tactics":str(settings.bot_tactics),"speed":str(settings.speed),"log":str(settings.log),
+		"hints":bool(settings.hints),"seed":7001 if settings.fixed_seed else 0,"xp_multiplier":xp_multiplier(settings)}
 
 # Moltiplicatore del premio XP: più la partita è difficile, più rende. Con i suggerimenti rende meno.
 static func xp_multiplier(settings: Dictionary) -> float:
