@@ -30,13 +30,13 @@ func _ready() -> void:
 		return
 	game.ui.show_statistics()
 	await save_screen("android-statistics")
-	game.ui.close_dialog()
+	game.ui.hub.close_modal()
 	game.ui.show_profile()
 	await save_screen("android-google-profile")
-	game.ui.close_dialog()
+	game.ui.hub.close_modal()
 	game.ui.show_lan()
 	await save_screen("android-lan-lobby")
-	game.ui.close_dialog()
+	game.ui.hub.close_modal()
 	game.lan.join_room("10.0.2.2","762481")
 	var started_at := Time.get_ticks_msec()
 	var actions := {}

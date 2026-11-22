@@ -57,9 +57,10 @@ static func reload(hub: Control, tab: String) -> void:
 static func build_game(hub: Control, parent: VBoxContainer) -> void:
 	var game: Node3D = hub.game
 	section(parent,"Come si gioca")
-	var help := Kit.row(parent,10)
-	Kit.button(help,"Regole del gioco",func():hub.show_rules(),"secondary",220)
-	Kit.button(help,"Le tue tattiche",func():hub.show_tactics(),"secondary",220)
+	var help: BoxContainer = Kit.row(parent,10) if not hub.portrait else Kit.column(parent,8)
+	for entry in [["Regole del gioco",hub.show_rules],["Le tue tattiche",hub.show_tactics]]:
+		var item := Kit.button(help,entry[0],entry[1],"secondary")
+		item.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	section(parent,"All'avvio apri")
 	var start: BoxContainer = Kit.row(parent,10) if not hub.portrait else Kit.column(parent,8)
 	for entry in START_PAGES:
@@ -105,7 +106,7 @@ static func build_game(hub: Control, parent: VBoxContainer) -> void:
 static func slider_row(parent: Node, title: String, value: float, callback: Callable) -> void:
 	var line := Kit.row(parent,16)
 	var caption := Kit.label(line,title,18,Kit.TEXT,false,600)
-	caption.custom_minimum_size.x = Kit.scale(170)
+	caption.custom_minimum_size.x = 120 if Kit.portrait else 170
 	var current := Kit.label(null,"%d%%" % roundi(value*100),16,Kit.EMBER_LIGHT,false,700)
 	Kit.slider(line,0.0,1.0,.01,value,func(v):
 		current.text = "%d%%" % roundi(v*100)

@@ -14,14 +14,15 @@ func run() -> void:
 	for cycle in 60:
 		game.ui.show_lan()
 		var create: Button
-		for node in game.ui.dialog.find_children("*","Button",true,false):
-			if node.text=="CREA STANZA":create=node
+		for node in game.ui.hub.stage.find_children("*","Button",true,false):
+			if node.text=="CREA UNA STANZA":create=node
 		check(is_instance_valid(create),"Pulsante creazione stanza presente")
 		if is_instance_valid(create):create.pressed.emit()
 		await process_frame
 		await process_frame
 		check(game.lan.role=="host" and game.lan.server.is_listening(),"Stanza creata dal vero callback UI")
-		game.ui.close_dialog()
+		game.ui.hub.leave_room_if_needed()
+		game.ui.hub.navigate("multiplayer",{"sub":"device"})
 		await process_frame
 		check(game.lan.role=="" and not game.lan.server.is_listening() and not game.lan.discovery.is_bound(),"Chiusura rilascia TCP e ricerca UDP")
 	game.prepare()

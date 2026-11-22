@@ -25,7 +25,7 @@ const TAB = preload("res://assets/ui/tab.png")
 const TAB_ACTIVE = preload("res://assets/ui/tab_active.png")
 const SLIDER = preload("res://assets/ui/slider_bg.png")
 const SLIDER_FILL = preload("res://assets/ui/slider_fill.png")
-const RULES_TEXT := "Ogni giocatore dispone di sei dadi e quindici pietre. La moneta decide l’iniziativa, poi l’ordine si inverte a ogni manche. Si alternano fino a tre lanci. Dopo il terzo lancio tutti i dadi rimasti entrano in gioco.\n\nAscia ed elmo si contrastano. Freccia e scudo si contrastano. Un attacco senza difesa toglie una pietra. Il bordo dorato genera un gettone. La mano sottrae un gettone al rivale per ultima, anche tra quelli appena guadagnati. Le mani contrapposte si annullano a coppie.\n\nLe tattiche agiscono per priorità. I primi precedono i dadi e richiedono gettoni già in riserva. Gli ultimi possono spendere quelli appena guadagnati. Chi perde l’ultima pietra perde la partita.\n\nClic su un dado per tenerlo. Clic destro per ispezionarlo. Clic sui totem per consultare o attivare una tattica."
+const RULES_TEXT := preload("res://scripts/rules_text.gd").TEXT
 var game: Node3D
 var screen: Control
 var dialog: Control

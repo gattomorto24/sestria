@@ -277,7 +277,9 @@ static func button(parent: Node, text: String, callback: Callable, kind := "seco
 	item.text = text
 	item.focus_mode = Control.FOCUS_NONE
 	item.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	item.custom_minimum_size = Vector2(scale(minimum),scale(50))
+	item.custom_minimum_size = Vector2(0 if portrait else minimum,scale(50))
+	if portrait:
+		item.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	item.add_theme_font_override("font",display_font(1))
 	item.add_theme_font_size_override("font_size",roundi(scale(18)))
 	var base := "brass" if kind == "primary" else "leather"
@@ -543,7 +545,7 @@ static func slider(parent: Node, low: float, high: float, step: float, value: fl
 	control.step = step
 	control.value = value
 	control.focus_mode = Control.FOCUS_NONE
-	control.custom_minimum_size = Vector2(scale(180),scale(30))
+	control.custom_minimum_size = Vector2(120 if portrait else 180,scale(30))
 	control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	control.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	control.add_theme_stylebox_override("slider",tex_style("xp_groove",10,0))

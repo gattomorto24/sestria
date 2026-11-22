@@ -218,8 +218,10 @@ func close_overlay() -> void:
 	visible = false
 	if audio:
 		audio.stop_music()
-	if ui and is_instance_valid(ui.dialog) == false and game.phase == "menu":
+	if game.phase == "menu":
 		ui.show_menu()
+	elif ui.paused_for_menu:
+		ui.close_dialog()
 
 # ---- Barra superiore ----
 

@@ -243,6 +243,42 @@ func refresh_profile() -> void:
 	if hub != null and hub.visible:
 		hub.rebuild_deferred()
 
+const RULES_TEXT := preload("res://scripts/rules_text.gd").TEXT
+
+# Scorciatoie verso le schede del menu (usate dall'app e dai collaudi).
+func show_lan() -> void:
+	ensure_hub()
+	hub.open("multiplayer",{"sub":"lan"})
+
+func show_online() -> void:
+	ensure_hub()
+	hub.open("multiplayer",{"sub":"online"})
+
+func show_updates() -> void:
+	ensure_hub()
+	hub.open("options",{"tab":"system"})
+
+func show_statistics() -> void:
+	ensure_hub()
+	hub.open("progress")
+
+func show_pass() -> void:
+	ensure_hub()
+	hub.open("progress")
+
+func show_profile() -> void:
+	ensure_hub()
+	hub.open("campaign")
+	hub.show_profile()
+
+func buy_upgrade(id: String) -> void:
+	game.progression.purchase(id)
+	hub.navigate("progress",{})
+
+func show_rules() -> void:
+	ensure_hub()
+	hub.show_rules()
+
 func refresh_updates() -> void:
 	if hub != null:
 		hub.refresh_updates()

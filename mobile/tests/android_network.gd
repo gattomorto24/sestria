@@ -19,8 +19,8 @@ func _ready() -> void:
 	for cycle in 40:
 		game.ui.show_lan()
 		var create: Button
-		for node in game.ui.dialog.find_children("*","Button",true,false):
-			if node.text=="CREA STANZA":create=node
+		for node in game.ui.hub.stage.find_children("*","Button",true,false):
+			if node.text=="CREA UNA STANZA":create=node
 		if not is_instance_valid(create):
 			fail("pulsante stanza non disponibile")
 			return
@@ -30,7 +30,8 @@ func _ready() -> void:
 		if game.lan.role!="host":
 			fail("creazione stanza")
 			return
-		game.ui.close_dialog()
+		game.ui.hub.leave_room_if_needed()
+		game.ui.hub.navigate("multiplayer",{"sub":"device"})
 		await get_tree().process_frame
 		if game.lan.server.is_listening() or game.lan.discovery.is_bound():
 			fail("risorse stanza non rilasciate")
@@ -40,7 +41,8 @@ func _ready() -> void:
 	await save_screen("sestria-menu")
 	game.ui.show_updates()
 	await save_screen("sestria-updates")
-	game.ui.close_dialog()
+	game.ui.hub.leave_room_if_needed()
+		game.ui.hub.navigate("multiplayer",{"sub":"device"})
 	game.lan.host_room()
 	game.lan.room_code="762481"
 	game.ui.show_lan()

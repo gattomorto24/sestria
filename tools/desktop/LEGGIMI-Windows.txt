@@ -1,4 +1,4 @@
-SESTRIA 4.7 per Windows x64
+SESTRIA 4.8 per Windows x64
 
 Requisiti: Windows 10 o successivo a 64 bit e una scheda grafica con driver Vulkan 1.0 o Direct3D 12.
 

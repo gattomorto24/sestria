@@ -98,16 +98,16 @@ func run() -> void:
 	game.ui.show_settings()
 	await shot("mobile-settings")
 	check(paused,"Impostazioni mantengono la pausa")
-	fits(game.ui.dialog.get_node("Card"),"Impostazioni dentro lo schermo ")
+	fits(game.ui.hub.stage.get_child(0),"Impostazioni dentro lo schermo ")
 	game.go_back()
 	check(not paused,"Ripresa dalla pausa")
 	game.ui.show_rules()
 	await shot("mobile-rules")
-	fits(game.ui.dialog.get_node("Card"),"Regole dentro lo schermo ")
-	for paragraph in game.ui.dialog.find_children("*","Label",true,false):
+	check(is_instance_valid(game.ui.hub.modal_layer),"Regole aperte")
+	for paragraph in game.ui.hub.modal_layer.find_children("*","Label",true,false):
 		if paragraph.autowrap_mode != TextServer.AUTOWRAP_OFF and not paragraph.text.is_empty():
 			check(paragraph.size.y >= 28,"Paragrafo leggibile con altezza non nulla")
-	game.go_back()
+	game.ui.hub.close_modal()
 	game.phase="favor"
 	game.rules.gold=[20,20]
 	game.visual_board=[[],[]]
