@@ -1,31 +1,101 @@
 extends RefCounted
-# Kit dell'interfaccia di SESTRIA 4.8: tavolozza, tipografia e componenti (pannelli, pulsanti, schede, tab, barre).
+# Kit dell'interfaccia di SESTRIA 4.8, in stile rustico: legno di quercia con cantonali di ferro e rivetti, pergamena
+# bruciacchiata, cuoio cucito, targhe di ottone, ceralacca. Le texture sono in assets/ui/rustic (tools/make_rustic_assets.gd).
 # Serve sia al desktop e al web (orizzontale) sia ad Android (verticale): `portrait` ingrandisce misure e tocchi.
-const DISPLAY_FONT = preload("res://assets/fonts/Marcellus-Regular.ttf")
-const BODY_FONT = preload("res://assets/fonts/Outfit.ttf")
+const DISPLAY_FONT = preload("res://assets/fonts/UncialAntiqua-Regular.ttf")
+const BODY_FONT = preload("res://assets/fonts/Alegreya.ttf")
 const MARK = preload("res://assets/ui/logo_mark.svg")
+const SKIN := "res://assets/ui/rustic/"
 
-const NIGHT := Color("#080b18")
-const BASE := Color("#101530")
-const RAISED := Color("#182044")
-const HIGH := Color("#222c5b")
-const LINE := Color("#2c386e")
-const TEXT := Color("#eef1ff")
-const MUTED := Color("#aab5e6")
-const DIM := Color("#8390c4")
-const EMBER := Color("#ffa23d")
-const EMBER_LIGHT := Color("#ffd08a")
-const EMBER_DARK := Color("#d9622b")
-const AZURE := Color("#5ad1ff")
-const MINT := Color("#68e3ae")
-const ROSE := Color("#ff6b86")
-const VIOLET := Color("#9d7bff")
+# Colori del testo su legno scuro, su pergamena e accenti.
+const TEXT := Color("#f6e8c6")
+const MUTED := Color("#d2bd90")
+const DIM := Color("#a89168")
+const INK := Color("#2c1809")
+const INK_SOFT := Color("#5a3a1c")
+const WOOD := Color("#3c2413")
+const WOOD_DARK := Color("#20120a")
+const LEATHER := Color("#3b2214")
+const LEATHER_LIGHT := Color("#5e3a22")
+const BRASS := Color("#e0b04a")
+const BRASS_DARK := Color("#9b6a22")
+const EMBER := Color("#f0a23a")
+const EMBER_LIGHT := Color("#ffd98a")
+const MOSS := Color("#8fb86a")
+const VERDIGRIS := Color("#6fb0a2")
+const WINE := Color("#c4485a")
+const MAUVE := Color("#b08ad0")
+# Alias dei nomi usati dalle pagine.
+const AZURE := VERDIGRIS
+const MINT := MOSS
+const ROSE := WINE
+const VIOLET := MAUVE
+const LINE := Color("#6b4a2a")
+const NIGHT := WOOD_DARK
+const BASE := WOOD
+const RAISED := LEATHER
+const HIGH := LEATHER_LIGHT
 
 static var portrait := false
 static var fonts := {}
+static var cache := {}
+static var audio: Node = null          # gestore dei suoni (hub_audio.gd), assegnato dal menu
 
 static func scale(value: float) -> float:
 	return value*(1.4 if portrait else 1.0)
+
+# ---- Suoni ----
+
+static func sfx(name: String) -> void:
+	if audio != null and is_instance_valid(audio):
+		audio.play_sfx(name)
+
+# ---- Texture e stili ----
+
+static func tex(name: String) -> Texture2D:
+	var key := "t_"+name
+	if not cache.has(key):
+		cache[key] = load(SKIN+name+".png")
+	return cache[key]
+
+# Stile a 9 fette da una texture della pelle rustica. `edge` = bordo che non si deforma, `inner` = margine del contenuto.
+static func tex_style(name: String, edge: float, inner: float, extra_h := 0.0, extra_v := 0.0) -> StyleBoxTexture:
+	var key := "s_%s_%d_%d_%d_%d" % [name,edge,inner,extra_h,extra_v]
+	if cache.has(key):
+		return cache[key]
+	var style := StyleBoxTexture.new()
+	style.texture = tex(name)
+	style.set_texture_margin_all(edge)
+	style.set_content_margin_all(inner)
+	style.content_margin_left = inner+extra_h
+	style.content_margin_right = inner+extra_h
+	style.content_margin_top = inner+extra_v
+	style.content_margin_bottom = inner+extra_v
+	cache[key] = style
+	return style
+
+static func flat(fill: Color, border := Color.TRANSPARENT, radius := 10, border_width := 1) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = fill
+	style.border_color = border
+	style.set_border_width_all(border_width if border.a > 0.0 else 0)
+	style.set_corner_radius_all(radius)
+	style.anti_aliasing = true
+	return style
+
+static func box_style(fill: Color, border := Color.TRANSPARENT, radius := 10, border_width := 1, shadow := 0) -> StyleBoxFlat:
+	var style := flat(fill,border,radius,border_width)
+	if shadow > 0:
+		style.shadow_color = Color(0,0,0,.4)
+		style.shadow_size = shadow
+	return style
+
+static func pad(style: StyleBoxFlat, horizontal: float, vertical: float) -> StyleBoxFlat:
+	style.content_margin_left = scale(horizontal)
+	style.content_margin_right = scale(horizontal)
+	style.content_margin_top = scale(vertical)
+	style.content_margin_bottom = scale(vertical)
+	return style
 
 # ---- Tipografia ----
 
@@ -35,6 +105,7 @@ static func body_font(weight := 400) -> Font:
 		var font := FontVariation.new()
 		font.base_font = BODY_FONT
 		font.variation_opentype = {TextServerManager.get_primary_interface().name_to_tag("weight"):weight}
+		font.opentype_features = {TextServerManager.get_primary_interface().name_to_tag("lnum"):1}
 		fonts[key] = font
 	return fonts[key]
 
@@ -47,19 +118,23 @@ static func display_font(spacing := 0) -> Font:
 		fonts[key] = font
 	return fonts[key]
 
-static func label(parent: Node, text: String, size := 16, color := TEXT, display := false, weight := 400) -> Label:
+static func label(parent: Node, text: String, size := 16, color := TEXT, display := false, weight := 500) -> Label:
 	var item := Label.new()
 	item.text = text
-	item.add_theme_font_override("font",display_font(2 if size >= 26 else 1) if display else body_font(weight))
-	item.add_theme_font_size_override("font_size",roundi(scale(size)))
+	item.add_theme_font_override("font",display_font(1) if display else body_font(weight))
+	item.add_theme_font_size_override("font_size",roundi(scale(size*(1.0 if display else 1.12))))
 	item.add_theme_color_override("font_color",color)
+	if color.get_luminance() > .55:
+		item.add_theme_color_override("font_shadow_color",Color(0,0,0,.55))
+		item.add_theme_constant_override("shadow_offset_x",1)
+		item.add_theme_constant_override("shadow_offset_y",2)
 	item.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if parent:
 		parent.add_child(item)
 	return item
 
 static func paragraph(parent: Node, text: String, width := 0.0, size := 15, color := MUTED) -> Label:
-	var item := label(parent,text,size,color)
+	var item := label(parent,text,size,color,false,500)
 	item.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	if width > 0.0:
 		item.custom_minimum_size.x = width
@@ -67,48 +142,41 @@ static func paragraph(parent: Node, text: String, width := 0.0, size := 15, colo
 		item.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	return item
 
-# ---- Stili ----
-
-static func box_style(fill: Color, border := Color.TRANSPARENT, radius := 16, border_width := 1, shadow := 0) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = fill
-	style.border_color = border
-	style.set_border_width_all(border_width if border.a > 0.0 else 0)
-	style.set_corner_radius_all(radius)
-	style.anti_aliasing = true
-	if shadow > 0:
-		style.shadow_color = Color(0,0,0,.38)
-		style.shadow_size = shadow
-		style.shadow_offset = Vector2(0,shadow*.35)
-	return style
-
-static func pad(style: StyleBoxFlat, horizontal: float, vertical: float) -> StyleBoxFlat:
-	style.content_margin_left = scale(horizontal)
-	style.content_margin_right = scale(horizontal)
-	style.content_margin_top = scale(vertical)
-	style.content_margin_bottom = scale(vertical)
-	return style
-
-static func gradient_style(top: Color, bottom: Color, border: Color, radius := 14) -> StyleBoxTexture:
-	var gradient := Gradient.new()
-	gradient.colors = PackedColorArray([top,bottom])
-	var texture := GradientTexture2D.new()
-	texture.gradient = gradient
-	texture.fill_from = Vector2(0,0)
-	texture.fill_to = Vector2(0,1)
-	texture.width = 8
-	texture.height = 64
-	var style := StyleBoxTexture.new()
-	style.texture = texture
-	style.modulate_color = Color.WHITE
-	return style
+# Titolo con contorno scuro e ombra, come inciso nel legno o dipinto sull'insegna.
+static func title(parent: Node, text: String, size := 34, color := EMBER_LIGHT) -> Label:
+	var item := Label.new()
+	item.text = text
+	item.add_theme_font_override("font",display_font(2))
+	item.add_theme_font_size_override("font_size",roundi(scale(size)))
+	item.add_theme_color_override("font_color",color)
+	item.add_theme_color_override("font_outline_color",Color("#1b0e05"))
+	item.add_theme_constant_override("outline_size",roundi(scale(size)*.16))
+	item.add_theme_color_override("font_shadow_color",Color(0,0,0,.6))
+	item.add_theme_constant_override("shadow_offset_x",2)
+	item.add_theme_constant_override("shadow_offset_y",3)
+	item.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if parent:
+		parent.add_child(item)
+	return item
 
 # ---- Contenitori ----
 
-static func panel(parent: Node, tone := "base", padding := 18.0, radius := 20) -> PanelContainer:
-	var fills := {"base":BASE,"raised":RAISED,"high":HIGH,"night":NIGHT,"glass":Color(BASE.r,BASE.g,BASE.b,.72)}
+# tone: wood (cornice di legno con ferro), bar (assi orizzontali), leather (scuro, per i riquadri), parchment
+static func panel(parent: Node, tone := "wood", padding := 18.0, _radius := 0) -> PanelContainer:
 	var frame := PanelContainer.new()
-	frame.add_theme_stylebox_override("panel",pad(box_style(fills.get(tone,BASE),LINE if tone != "night" else Color.TRANSPARENT,radius,1,18 if tone != "night" else 0),padding,padding*.85))
+	match tone:
+		"parchment":
+			frame.add_theme_stylebox_override("panel",tex_style("parchment",22,18,scale(padding)-12.0,scale(padding)*.5))
+		"leather","raised":
+			var style := flat(Color(LEATHER.r,LEATHER.g,LEATHER.b,.92),Color("#150b05"),10,2)
+			style.set_content_margin_all(scale(padding)*.75)
+			style.shadow_color = Color(0,0,0,.35)
+			style.shadow_size = 5
+			frame.add_theme_stylebox_override("panel",style)
+		"bar":
+			frame.add_theme_stylebox_override("panel",tex_style("wood_bar",40,scale(10),scale(padding)))
+		_:
+			frame.add_theme_stylebox_override("panel",tex_style("wood_panel",40,scale(18),scale(padding)-8.0,scale(padding)-8.0))
 	if parent:
 		parent.add_child(frame)
 	return frame
@@ -161,53 +229,95 @@ static func scroll(parent: Node, gap := 14.0) -> VBoxContainer:
 	return inner
 
 static func divider(parent: Node) -> void:
-	var line := ColorRect.new()
-	line.color = Color(LINE.r,LINE.g,LINE.b,.7)
-	line.custom_minimum_size.y = 1
+	var line := TextureRect.new()
+	line.texture = tex("divider")
+	line.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	line.stretch_mode = TextureRect.STRETCH_SCALE
+	line.custom_minimum_size = Vector2(0,scale(14))
 	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	parent.add_child(line)
 
+# ---- Animazioni ----
+
+# Dissolvenza in ingresso, ritardata per far comparire gli elementi uno dopo l'altro.
+static func appear(node: Control, delay := 0.0) -> void:
+	if not node.is_inside_tree():
+		return
+	node.modulate.a = 0.0
+	var tween := node.create_tween()
+	tween.tween_interval(delay)
+	tween.tween_property(node,"modulate:a",1.0,.3).set_ease(Tween.EASE_OUT)
+
+# Piccola animazione di pressione e ingrandimento al passaggio del mouse, con suono.
+static func juice(item: Control, hover_sound := "hover", press_sound := "click") -> void:
+	item.resized.connect(func():item.pivot_offset = item.size*.5)
+	item.mouse_entered.connect(func():
+		if item is BaseButton and item.disabled:
+			return
+		sfx(hover_sound)
+		var tween := item.create_tween()
+		tween.tween_property(item,"scale",Vector2(1.035,1.035),.09).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT))
+	item.mouse_exited.connect(func():
+		var tween := item.create_tween()
+		tween.tween_property(item,"scale",Vector2.ONE,.12))
+	if item is BaseButton:
+		item.button_down.connect(func():
+			sfx(press_sound)
+			var tween := item.create_tween()
+			tween.tween_property(item,"scale",Vector2(.965,.965),.05))
+		item.button_up.connect(func():
+			var tween := item.create_tween()
+			tween.tween_property(item,"scale",Vector2(1.035,1.035),.1).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT))
+
 # ---- Pulsanti ----
 
-# kind: primary (brace), secondary, ghost, danger
+# kind: primary (targa d'ottone), secondary (cuoio), ghost (solo testo), danger (cuoio rosso)
 static func button(parent: Node, text: String, callback: Callable, kind := "secondary", minimum := 0.0) -> Button:
 	var item := Button.new()
 	item.text = text
 	item.focus_mode = Control.FOCUS_NONE
 	item.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	item.custom_minimum_size = Vector2(scale(minimum),scale(46))
-	item.add_theme_font_override("font",body_font(600))
-	item.add_theme_font_size_override("font_size",roundi(scale(16)))
-	var palette := {
-		"primary":[EMBER,EMBER_DARK,Color("#1a0f05"),EMBER_LIGHT],
-		"secondary":[HIGH,RAISED,TEXT,AZURE],
-		"ghost":[Color(1,1,1,.03),Color(1,1,1,.0),MUTED,LINE],
-		"danger":[Color("#5a1d2e"),Color("#3a1220"),Color("#ffd5dc"),ROSE]}
-	var colors: Array = palette.get(kind,palette.secondary)
-	var normal := box_style(colors[0],colors[3].darkened(.35) if kind != "primary" else EMBER_LIGHT,14,1,10 if kind == "primary" else 0)
-	var hover := box_style(colors[0].lightened(.12),colors[3],14,1,12 if kind == "primary" else 4)
-	var pressed := box_style(colors[1],colors[3],14,1,0)
-	var disabled := box_style(Color(HIGH.r,HIGH.g,HIGH.b,.45),Color.TRANSPARENT,14,0,0)
-	for style in [normal,hover,pressed,disabled]:
-		pad(style,20,10)
-	item.add_theme_stylebox_override("normal",normal)
-	item.add_theme_stylebox_override("hover",hover)
-	item.add_theme_stylebox_override("pressed",pressed)
-	item.add_theme_stylebox_override("disabled",disabled)
-	for key in ["font_color","font_hover_color","font_pressed_color"]:
-		item.add_theme_color_override(key,colors[2])
+	item.custom_minimum_size = Vector2(scale(minimum),scale(50))
+	item.add_theme_font_override("font",display_font(1))
+	item.add_theme_font_size_override("font_size",roundi(scale(18)))
+	var base := "brass" if kind == "primary" else "leather"
+	if kind == "ghost":
+		var empty := StyleBoxEmpty.new()
+		empty.set_content_margin_all(scale(8))
+		for key in ["normal","hover","pressed","disabled"]:
+			item.add_theme_stylebox_override(key,empty)
+	else:
+		for state in ["normal","hover","pressed","disabled"]:
+			var style: StyleBoxTexture = tex_style("%s_%s" % [base,state],22,scale(8),scale(14),scale(4)).duplicate()
+			if kind == "danger":
+				style.modulate_color = Color(1.15,.62,.62)
+			item.add_theme_stylebox_override(state,style)
+	var ink := INK if kind == "primary" else (MUTED if kind == "ghost" else TEXT)
+	for key in ["font_color","font_pressed_color"]:
+		item.add_theme_color_override(key,ink)
+	item.add_theme_color_override("font_hover_color",INK if kind == "primary" else EMBER_LIGHT)
 	item.add_theme_color_override("font_disabled_color",DIM)
+	if kind != "primary":
+		item.add_theme_color_override("font_shadow_color",Color(0,0,0,.7))
+		item.add_theme_constant_override("shadow_offset_y",2)
 	item.pressed.connect(callback)
+	juice(item)
 	if parent:
 		parent.add_child(item)
 	return item
 
 # ---- Etichette e indicatori ----
 
+# Targhetta: piccola etichetta di cuoio con bordo colorato.
 static func chip(parent: Node, text: String, color := EMBER) -> PanelContainer:
 	var frame := PanelContainer.new()
-	frame.add_theme_stylebox_override("panel",pad(box_style(Color(color.r,color.g,color.b,.16),Color(color.r,color.g,color.b,.5),99,1),10,3))
-	label(frame,text,12,color,false,600)
+	var style := flat(Color(color.r*.25,color.g*.25,color.b*.25,.95),color.darkened(.1),8,2)
+	style.content_margin_left = scale(10)
+	style.content_margin_right = scale(10)
+	style.content_margin_top = scale(3)
+	style.content_margin_bottom = scale(3)
+	frame.add_theme_stylebox_override("panel",style)
+	label(frame,text,12,color.lightened(.35),false,700)
 	if parent:
 		parent.add_child(frame)
 	return frame
@@ -215,142 +325,38 @@ static func chip(parent: Node, text: String, color := EMBER) -> PanelContainer:
 class Meter extends Control:
 	var value := 0.0
 	var maximum := 1.0
-	var fill_a := Color("#ffd08a")
-	var fill_b := Color("#ff8a3d")
+	var groove: StyleBoxTexture
+	var fill: StyleBoxTexture
 	func _draw() -> void:
+		draw_style_box(groove,Rect2(Vector2.ZERO,size))
 		var ratio := clampf(value/maxf(maximum,.0001),0.0,1.0)
-		if ratio <= 0.0:
-			return
-		var w := maxf(size.y,size.x*ratio)
-		draw_rect(Rect2(0,0,w,size.y),fill_b,true)
-		draw_rect(Rect2(0,0,w,size.y*.5),fill_a,true)
+		if ratio > 0.0:
+			var inset := size.y*.16
+			var width := maxf(size.y*.7,(size.x-inset*2.0)*ratio)
+			draw_style_box(fill,Rect2(Vector2(inset,inset),Vector2(width,size.y-inset*2.0)))
 	func set_value(v: float, m: float) -> void:
 		value = v
 		maximum = m
 		queue_redraw()
 
-# Barra con angoli tondi: un pannello arrotondato che ritaglia il riempimento. `set_value()` sul controllo restituito.
-static func meter(parent: Node, value: float, maximum: float, height := 10.0, colors := [EMBER_LIGHT,EMBER]) -> Meter:
-	var holder := PanelContainer.new()
-	holder.add_theme_stylebox_override("panel",box_style(Color("#1b2350"),Color.TRANSPARENT,99,0))
-	holder.clip_children = CanvasItem.CLIP_CHILDREN_AND_DRAW
-	holder.custom_minimum_size.y = scale(height)
-	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+# Barra di avanzamento incisa nel legno, riempita di brace. `set_value()` sul controllo restituito.
+static func meter(parent: Node, value: float, maximum: float, height := 14.0, _colors := []) -> Meter:
 	var bar := Meter.new()
 	bar.value = value
 	bar.maximum = maximum
-	bar.fill_a = colors[0]
-	bar.fill_b = colors[1]
-	bar.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	bar.groove = tex_style("xp_groove",10,0)
+	bar.fill = tex_style("xp_fill",8,0)
+	bar.custom_minimum_size.y = scale(height)
 	bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	holder.add_child(bar)
 	if parent:
-		parent.add_child(holder)
+		parent.add_child(bar)
 	return bar
 
 # ---- Schede ----
 
-# Barra di schede a pillola. `items` = lista di nomi; `callback(index)`.
+# Barra di tavolette di legno. `items` = nomi; `callback(index)`. La scheda attiva è illuminata con un filo d'ottone.
 static func tabs(parent: Node, items: Array, active: int, callback: Callable, fill := false) -> HBoxContainer:
-	var bar := HBoxContainer.new()
-	bar.add_theme_constant_override("separation",roundi(scale(6)))
-	if parent:
-		parent.add_child(bar)
-	for index in items.size():
-		var selected := index == active
-		var item := Button.new()
-		item.text = str(items[index])
-		item.focus_mode = Control.FOCUS_NONE
-		item.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		item.custom_minimum_size = Vector2(0,scale(44))
-		item.add_theme_font_override("font",body_font(600))
-		item.add_theme_font_size_override("font_size",roundi(scale(15)))
-		var normal := pad(box_style(Color(EMBER.r,EMBER.g,EMBER.b,.16) if selected else Color(1,1,1,.0),EMBER if selected else Color.TRANSPARENT,12,1),18,8)
-		var hover := pad(box_style(Color(1,1,1,.06),Color.TRANSPARENT,12,0),18,8)
-		item.add_theme_stylebox_override("normal",normal)
-		item.add_theme_stylebox_override("hover",hover)
-		item.add_theme_stylebox_override("pressed",normal)
-		var tone := EMBER_LIGHT if selected else MUTED
-		for key in ["font_color","font_hover_color","font_pressed_color"]:
-			item.add_theme_color_override(key,tone if key != "font_hover_color" else TEXT)
-		if fill:
-			item.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		item.pressed.connect(callback.bind(index))
-		bar.add_child(item)
-	return bar
-
-# Scheda di scelta visuale: titolo, descrizione e simbolo disegnato; evidenziata se selezionata.
-class Card extends PanelContainer:
-	signal chosen
-	var selected := false
-	var accent := Color("#ffa23d")
-	var hovered := false
-	func _init(is_selected := false, color := Color("#ffa23d")) -> void:
-		selected = is_selected
-		accent = color
-		mouse_filter = Control.MOUSE_FILTER_STOP
-		mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		refresh()
-		mouse_entered.connect(func():
-			hovered = true
-			refresh())
-		mouse_exited.connect(func():
-			hovered = false
-			refresh())
-	func refresh() -> void:
-		var fill := Color("#182044") if not hovered else Color("#202a58")
-		var border := accent if selected else Color("#2c386e")
-		var style := StyleBoxFlat.new()
-		style.bg_color = Color(accent.r,accent.g,accent.b,.14) if selected else fill
-		style.border_color = border
-		style.set_border_width_all(2 if selected else 1)
-		style.set_corner_radius_all(18)
-		style.anti_aliasing = true
-		style.set_content_margin_all(14)
-		if selected or hovered:
-			style.shadow_color = Color(accent.r,accent.g,accent.b,.28 if selected else .12)
-			style.shadow_size = 12
-		add_theme_stylebox_override("panel",style)
-	func _gui_input(event: InputEvent) -> void:
-		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-			chosen.emit()
-			accept_event()
-		elif event is InputEventScreenTouch and event.pressed:
-			chosen.emit()
-
-static func card(parent: Node, title: String, subtitle: String, selected: bool, callback: Callable, color := EMBER, icon := "") -> Card:
-	var item := Card.new(selected,color)
-	if parent:
-		parent.add_child(item)
-	var body := column(item,4)
-	body.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var head := row(body,8)
-	head.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	if not icon.is_empty():
-		label(head,icon,22,color,true)
-	var name := label(head,title,17,TEXT if selected else Color("#dfe4ff"),false,600)
-	name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	if selected:
-		label(head,"✓",16,color,false,700)
-	if not subtitle.is_empty():
-		var sub := paragraph(body,subtitle,0.0,13,MUTED)
-		sub.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	item.chosen.connect(callback)
-	return item
-
-# Riga "etichetta · controllo" per le impostazioni.
-static func setting_row(parent: Node, title: String, hint := "") -> HBoxContainer:
-	var line := row(parent,16)
-	var texts := column(line,2)
-	texts.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	label(texts,title,16,TEXT,false,500)
-	if not hint.is_empty():
-		paragraph(texts,hint,0.0,13,DIM)
-	return line
-
-# Selettore a segmenti (poche opzioni, una scelta). `callback(index)`.
-static func segments(parent: Node, items: Array, active: int, callback: Callable, color := EMBER) -> HBoxContainer:
 	var bar := HBoxContainer.new()
 	bar.add_theme_constant_override("separation",roundi(scale(4)))
 	if parent:
@@ -361,43 +367,159 @@ static func segments(parent: Node, items: Array, active: int, callback: Callable
 		item.text = str(items[index])
 		item.focus_mode = Control.FOCUS_NONE
 		item.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		item.custom_minimum_size = Vector2(scale(54),scale(40))
-		item.add_theme_font_override("font",body_font(600))
-		item.add_theme_font_size_override("font_size",roundi(scale(14)))
-		var normal := pad(box_style(Color(color.r,color.g,color.b,.9) if selected else HIGH,Color.TRANSPARENT,10,0),14,6)
-		var hover := pad(box_style(Color(color.r,color.g,color.b,1.0) if selected else Color("#2b3770"),Color.TRANSPARENT,10,0),14,6)
-		item.add_theme_stylebox_override("normal",normal)
-		item.add_theme_stylebox_override("hover",hover)
-		item.add_theme_stylebox_override("pressed",normal)
-		var tone := Color("#1a0f05") if selected else MUTED
-		for key in ["font_color","font_hover_color","font_pressed_color"]:
-			item.add_theme_color_override(key,tone if selected or key != "font_hover_color" else TEXT)
+		item.custom_minimum_size = Vector2(0,scale(50))
+		item.add_theme_font_override("font",display_font(1))
+		item.add_theme_font_size_override("font_size",roundi(scale(16)))
+		item.add_theme_stylebox_override("normal",tex_style("tab_active" if selected else "tab_normal",18,scale(5),scale(8),scale(3)))
+		item.add_theme_stylebox_override("hover",tex_style("tab_active" if selected else "tab_hover",18,scale(5),scale(8),scale(3)))
+		item.add_theme_stylebox_override("pressed",tex_style("tab_pressed",18,scale(5),scale(8),scale(3)))
+		var tone := EMBER_LIGHT if selected else MUTED
+		item.add_theme_color_override("font_color",tone)
+		item.add_theme_color_override("font_pressed_color",tone)
+		item.add_theme_color_override("font_hover_color",EMBER_LIGHT if selected else TEXT)
+		item.add_theme_color_override("font_shadow_color",Color(0,0,0,.8))
+		item.add_theme_constant_override("shadow_offset_y",2)
+		if fill:
+			item.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		item.pressed.connect(callback.bind(index))
+		juice(item,"hover","tab")
+		bar.add_child(item)
+	return bar
+
+# Scheda di scelta visuale: un foglio di pergamena con titolo e descrizione; quella scelta ha il sigillo di ceralacca.
+class Card extends PanelContainer:
+	signal chosen
+	var selected := false
+	var accent := Color("#f0a23a")
+	var paper: StyleBoxTexture
+	func _init(is_selected := false, color := Color("#f0a23a")) -> void:
+		selected = is_selected
+		accent = color
+		mouse_filter = Control.MOUSE_FILTER_STOP
+		mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		var kit = load("res://scripts/hub/kit.gd")
+		paper = kit.tex_style("parchment",22,16,12,6).duplicate()
+		paper.modulate_color = Color(1.0,.92,.74) if selected else Color(.9,.84,.72)
+		add_theme_stylebox_override("panel",paper)
+		resized.connect(func():pivot_offset = size*.5)
+		mouse_entered.connect(func():
+			kit.sfx("hover")
+			create_tween().tween_property(self,"scale",Vector2(1.015,1.015),.1).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+			paper.modulate_color = Color(1.0,.96,.82))
+		mouse_exited.connect(func():
+			create_tween().tween_property(self,"scale",Vector2.ONE,.12)
+			paper.modulate_color = Color(1.0,.92,.74) if selected else Color(.9,.84,.72))
+	func _draw() -> void:
+		if selected:
+			var kit = load("res://scripts/hub/kit.gd")
+			var side := minf(size.y*.5,34.0)
+			draw_texture_rect(kit.tex("seal"),Rect2(size.x-side-12,10,side,side),false)
+			draw_line(Vector2(size.x-side*.8-12,10+side*.52),Vector2(size.x-side*.5-12,10+side*.78),Color("#f6d8a8"),2.4,true)
+			draw_line(Vector2(size.x-side*.5-12,10+side*.78),Vector2(size.x-side*.2-12,10+side*.3),Color("#f6d8a8"),2.4,true)
+	func _gui_input(event: InputEvent) -> void:
+		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+			load("res://scripts/hub/kit.gd").sfx("click")
+			chosen.emit()
+			accept_event()
+		elif event is InputEventScreenTouch and event.pressed:
+			chosen.emit()
+
+static func card(parent: Node, title_text: String, subtitle: String, selected: bool, callback: Callable, color := EMBER, icon := "") -> Card:
+	var item := Card.new(selected,color)
+	if parent:
+		parent.add_child(item)
+	var body := column(item,2)
+	body.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var head := row(body,8)
+	head.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if not icon.is_empty():
+		var tag := label(head,icon,18,color.darkened(.35),true)
+		tag.remove_theme_color_override("font_shadow_color")
+	var name := label(head,title_text,19,INK,true)
+	name.remove_theme_color_override("font_shadow_color")
+	name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	if not subtitle.is_empty():
+		var sub := paragraph(body,subtitle,0.0,14,INK_SOFT)
+		sub.remove_theme_color_override("font_shadow_color")
+		sub.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	item.chosen.connect(callback)
+	return item
+
+# Riga "etichetta · controllo" per le impostazioni.
+static func setting_row(parent: Node, title_text: String, hint := "") -> HBoxContainer:
+	var line := row(parent,16)
+	var texts := column(line,0)
+	texts.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label(texts,title_text,17,TEXT,false,600)
+	if not hint.is_empty():
+		paragraph(texts,hint,0.0,13,DIM)
+	return line
+
+# Selettore a segmenti: tasselli di cuoio, quello scelto è una targa d'ottone. `callback(index)`.
+static func segments(parent: Node, items: Array, active: int, callback: Callable, _color := EMBER) -> HBoxContainer:
+	var bar := HBoxContainer.new()
+	bar.add_theme_constant_override("separation",roundi(scale(4)))
+	if parent:
+		parent.add_child(bar)
+	for index in items.size():
+		var selected := index == active
+		var item := Button.new()
+		item.text = str(items[index])
+		item.focus_mode = Control.FOCUS_NONE
+		item.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		item.custom_minimum_size = Vector2(scale(52),scale(40))
+		item.add_theme_font_override("font",body_font(700))
+		item.add_theme_font_size_override("font_size",roundi(scale(16)))
+		var base := "brass" if selected else "leather"
+		item.add_theme_stylebox_override("normal",tex_style(base+"_normal",18,scale(6),scale(10),scale(2)))
+		item.add_theme_stylebox_override("hover",tex_style(base+"_hover",18,scale(6),scale(10),scale(2)))
+		item.add_theme_stylebox_override("pressed",tex_style(base+"_pressed",18,scale(6),scale(10),scale(2)))
+		item.add_theme_color_override("font_color",INK if selected else TEXT)
+		item.add_theme_color_override("font_hover_color",INK if selected else EMBER_LIGHT)
+		item.add_theme_color_override("font_pressed_color",INK if selected else TEXT)
+		item.pressed.connect(callback.bind(index))
+		juice(item)
 		bar.add_child(item)
 	return bar
 
 static func toggle(parent: Node, value: bool, callback: Callable) -> Button:
 	var item := Button.new()
 	item.focus_mode = Control.FOCUS_NONE
-	item.toggle_mode = true
-	item.button_pressed = value
-	item.custom_minimum_size = Vector2(scale(58),scale(32))
+	item.custom_minimum_size = Vector2(scale(64),scale(38))
 	item.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	item.text = "SÌ" if value else "NO"
 	item.add_theme_font_override("font",body_font(700))
-	item.add_theme_font_size_override("font_size",roundi(scale(12)))
-	var on := box_style(MINT,Color.TRANSPARENT,99,0)
-	var off := box_style(HIGH,Color.TRANSPARENT,99,0)
-	var current := on if value else off
-	for key in ["normal","hover","pressed"]:
-		item.add_theme_stylebox_override(key,current)
+	item.add_theme_font_size_override("font_size",roundi(scale(15)))
+	var base := "brass" if value else "leather"
+	for state in ["normal","hover","pressed"]:
+		item.add_theme_stylebox_override(state,tex_style("%s_%s" % [base,state],18,scale(6),scale(10),scale(2)))
 	for key in ["font_color","font_hover_color","font_pressed_color"]:
-		item.add_theme_color_override(key,Color("#06241a") if value else MUTED)
-	item.pressed.connect(func():
-		callback.call(not value))
+		item.add_theme_color_override(key,INK if value else TEXT)
+	item.pressed.connect(func():callback.call(not value))
+	juice(item)
 	if parent:
 		parent.add_child(item)
 	return item
+
+# Sigillo di ceralacca con un numero (il livello del giocatore).
+static func seal(parent: Node, text: String, side := 44.0) -> Control:
+	var holder := Control.new()
+	holder.custom_minimum_size = Vector2(scale(side),scale(side))
+	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var image := TextureRect.new()
+	image.texture = tex("seal")
+	image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	image.stretch_mode = TextureRect.STRETCH_SCALE
+	image.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	image.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	holder.add_child(image)
+	var number := label(holder,text,side*.42,Color("#fbe6c2"),true)
+	number.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	number.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	number.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	if parent:
+		parent.add_child(holder)
+	return holder
 
 static func format_number(value: int) -> String:
 	var text := str(absi(value))

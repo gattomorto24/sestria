@@ -4,7 +4,9 @@ extends Control
 const Kit = preload("res://scripts/hub/kit.gd")
 const Avatar = preload("res://scripts/hub/avatar.gd")
 const Profile = preload("res://scripts/hub/profile_store.gd")
-const GLASS = preload("res://assets/ui/hub_glass.gdshader")
+const VIGNETTE = preload("res://assets/ui/hub_vignette.gdshader")
+const TORCH = preload("res://assets/ui/hub_torch.gdshader")
+const Audio = preload("res://scripts/hub/hub_audio.gd")
 const PAGES := ["campaign","multiplayer","friends","progress","options"]
 const PAGE_NAMES := {"campaign":"Campagna","multiplayer":"Multigiocatore","friends":"Amici","progress":"Progressi","options":"Opzioni"}
 const SCRIPTS := {"campaign":"res://scripts/hub/page_campaign.gd","multiplayer":"res://scripts/hub/page_multiplayer.gd","friends":"res://scripts/hub/page_friends.gd","progress":"res://scripts/hub/page_progress.gd","options":"res://scripts/hub/page_options.gd"}
@@ -21,6 +23,7 @@ var modal_layer: Control
 var player_card: Control
 var toast_label: Label
 var toast_tween: Tween
+var audio: Node
 
 func setup(owner_game: Node3D, interface: Control, is_portrait: bool) -> void:
 	game = owner_game
@@ -29,12 +32,53 @@ func setup(owner_game: Node3D, interface: Control, is_portrait: bool) -> void:
 	Kit.portrait = portrait
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
-	var glass := ColorRect.new()
-	glass.material = ShaderMaterial.new()
-	glass.material.shader = GLASS
-	glass.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(glass)
-	glass.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# Il tavolo 3D resta visibile e non viene toccato: solo bordi scuri, il bagliore delle fiaccole e qualche favilla.
+	var shade := ColorRect.new()
+	shade.material = ShaderMaterial.new()
+	shade.material.shader = VIGNETTE
+	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(shade)
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var torch := ColorRect.new()
+	torch.material = ShaderMaterial.new()
+	torch.material.shader = TORCH
+	torch.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(torch)
+	torch.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(make_embers())
+	audio = Audio.new()
+	add_child(audio)
+	audio.setup(game)
+	Kit.audio = audio
+	visibility_changed.connect(func():
+		if visible:
+			audio.start_music()
+		else:
+			audio.stop_music())
+
+func make_embers() -> CPUParticles2D:
+	var embers := CPUParticles2D.new()
+	embers.material = CanvasItemMaterial.new()
+	embers.material.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	embers.amount = 26
+	embers.lifetime = 7.0
+	embers.preprocess = 7.0
+	embers.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
+	embers.emission_rect_extents = Vector2(900,6)
+	embers.position = Vector2(640,820)
+	embers.direction = Vector2(0,-1)
+	embers.spread = 18.0
+	embers.gravity = Vector2(6,-10)
+	embers.initial_velocity_min = 22.0
+	embers.initial_velocity_max = 60.0
+	embers.scale_amount_min = 1.6
+	embers.scale_amount_max = 3.6
+	var ramp := Gradient.new()
+	ramp.colors = PackedColorArray([Color(1,.75,.3,0),Color(1,.65,.2,.85),Color(.9,.3,.1,0)])
+	ramp.offsets = PackedFloat32Array([0.0,.25,1.0])
+	embers.color_ramp = ramp
+	embers.z_index = 5
+	return embers
 
 # Apre il menu su una pagina. `state` passa dati alla pagina (ad esempio la sotto-scheda).
 func open(wanted := "", state := {}) -> void:
@@ -80,18 +124,21 @@ func navigate(wanted: String, state := {}) -> void:
 # ---- Barra superiore ----
 
 func build_top_bar(parent: Control) -> void:
-	var bar := Kit.panel(parent,"glass",14 if not portrait else 12,22)
+	var bar := Kit.panel(parent,"bar",14 if not portrait else 8)
 	var line := Kit.row(bar,18)
 	player_card = build_player_card(line)
 	if not portrait:
 		Kit.spacer(line)
-		var names := PAGES.map(func(p):return PAGE_NAMES[p] + (" ●" if p == "friends" and friend_alert() else ""))
-		Kit.tabs(line,names,PAGES.find(page),func(index):navigate(PAGES[index]))
+		var names := PAGES.map(func(p):return PAGE_NAMES[p] + (" •" if p == "friends" and friend_alert() else ""))
+		Kit.tabs(line,names,PAGES.find(page),func(index):
+			Kit.sfx("tab")
+			navigate(PAGES[index]))
 		Kit.spacer(line)
-		build_brand(line,38)
+		build_brand(line,46)
 	else:
 		Kit.spacer(line)
-		build_brand(line,30)
+		build_brand(line,40)
+	Kit.appear(bar)
 
 func build_brand(parent: Control, side: float) -> void:
 	var brand := Kit.row(parent,10)
@@ -103,14 +150,13 @@ func build_brand(parent: Control, side: float) -> void:
 	mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	brand.add_child(mark)
 	if not portrait:
-		var word := Kit.label(brand,"SESTRIA",side*.62,Kit.TEXT,true)
-		word.add_theme_font_override("font",Kit.display_font(5))
+		var word := Kit.title(brand,"Sestria",28)
 		word.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 
 func friend_alert() -> bool:
 	return game.friends != null and game.friends.pending_incoming() > 0
 
-# Scheda del giocatore: icona, nome, titolo, livello e barra XP. Un tocco apre il profilo.
+# Scheda del giocatore: icona con anello di ferro, sigillo con il livello, nome e barra XP. Un tocco apre il profilo.
 func build_player_card(parent: Control) -> Control:
 	var progression: RefCounted = game.progression
 	var level: int = progression.level()
@@ -123,25 +169,28 @@ func build_player_card(parent: Control) -> Control:
 		holder.add_theme_stylebox_override(key,empty)
 	holder.pressed.connect(show_profile)
 	parent.add_child(holder)
+	Kit.juice(holder,"hover","open")
 	var line := Kit.row(holder,12)
 	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	holder.custom_minimum_size = Vector2(Kit.scale(300 if not portrait else 250),Kit.scale(62))
-	var avatar := Avatar.new(Kit.scale(60))
+	holder.custom_minimum_size = Vector2(Kit.scale(290 if not portrait else 250),Kit.scale(74))
+	var badge := Control.new()
+	badge.custom_minimum_size = Vector2(Kit.scale(76),Kit.scale(76))
+	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	line.add_child(badge)
+	var avatar := Avatar.new(Kit.scale(68))
 	avatar.configure(game.profile.data.emblem,game.profile.data.color)
-	line.add_child(avatar)
-	var texts := Kit.column(line,3)
+	badge.add_child(avatar)
+	var seal := Kit.seal(badge,str(level),34)
+	seal.position = Vector2(Kit.scale(42),Kit.scale(42))
+	var texts := Kit.column(line,2)
 	texts.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	texts.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	texts.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var top := Kit.row(texts,8)
-	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	Kit.label(top,str(game.profile.data.name),17,Kit.TEXT,false,600)
-	var level_chip := Kit.chip(top,"LIV. %d" % level,Kit.EMBER)
-	level_chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	Kit.label(texts,str(game.profile.data.name),20,Kit.TEXT,true)
 	var xp: int = progression.xp_in_level()
 	var needed: int = progression.xp_required(level)
-	Kit.meter(texts,xp,needed,9)
-	Kit.label(texts,"%s / %s XP" % [Kit.format_number(xp),Kit.format_number(needed)],12,Kit.MUTED)
+	Kit.meter(texts,xp,needed,16)
+	Kit.label(texts,"Livello %d · %s / %s XP" % [level,Kit.format_number(xp),Kit.format_number(needed)],13,Kit.MUTED,false,600)
 	return holder
 
 # ---- Barra inferiore (verticale) ----
@@ -159,7 +208,7 @@ func build_bottom_bar(parent: Control) -> void:
 		item.custom_minimum_size.y = Kit.scale(52)
 		item.add_theme_font_override("font",Kit.body_font(600))
 		item.add_theme_font_size_override("font_size",roundi(Kit.scale(11)))
-		var normal := Kit.pad(Kit.box_style(Color(Kit.EMBER.r,Kit.EMBER.g,Kit.EMBER.b,.16) if selected else Color(1,1,1,0),Color.TRANSPARENT,14,0),4,6)
+		var normal := Kit.pad(Kit.box_style(Color(Kit.EMBER.r,Kit.EMBER.g,Kit.EMBER.b,.22) if selected else Color(1,1,1,0),Color.TRANSPARENT,10,0),4,6)
 		for key in ["normal","hover","pressed"]:
 			item.add_theme_stylebox_override(key,normal)
 		for key in ["font_color","font_hover_color","font_pressed_color"]:
@@ -190,7 +239,7 @@ func modal(title: String, width := 560.0) -> VBoxContainer:
 	card.custom_minimum_size.x = minf(Kit.scale(width),size.x-40)
 	var column := Kit.column(card,14)
 	var head := Kit.row(column,8)
-	var heading := Kit.label(head,title,26,Kit.TEXT,true)
+	var heading := Kit.title(head,title,30)
 	heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	Kit.button(head,"✕",close_modal,"ghost")
 	Kit.divider(column)
@@ -245,7 +294,7 @@ func show_profile() -> void:
 	var body := modal("Il tuo profilo",640)
 	var banner: Dictionary = Profile.BANNERS[profile.data.banner]
 	var hero := PanelContainer.new()
-	var hero_style := Kit.box_style(banner.b,banner.a.darkened(.2),22,1)
+	var hero_style: StyleBoxFlat = Kit.box_style(banner.b,banner.a.darkened(.2),14,2)
 	hero_style.border_width_bottom = 0
 	hero.add_theme_stylebox_override("panel",Kit.pad(hero_style,20,18))
 	body.add_child(hero)
@@ -323,8 +372,8 @@ func style_field(field: LineEdit) -> void:
 	field.add_theme_color_override("font_color",Kit.TEXT)
 	field.add_theme_color_override("font_placeholder_color",Kit.DIM)
 	field.add_theme_color_override("caret_color",Kit.EMBER)
-	var normal := Kit.pad(Kit.box_style(Kit.NIGHT,Kit.LINE,12,1),14,8)
-	var focus := Kit.pad(Kit.box_style(Kit.NIGHT,Kit.EMBER,12,2),14,8)
+	var normal: StyleBoxFlat = Kit.pad(Kit.box_style(Color("#1c1008"),Kit.LINE,8,2),14,8)
+	var focus: StyleBoxFlat = Kit.pad(Kit.box_style(Color("#1c1008"),Kit.EMBER,8,2),14,8)
 	field.add_theme_stylebox_override("normal",normal)
 	field.add_theme_stylebox_override("focus",focus)
 

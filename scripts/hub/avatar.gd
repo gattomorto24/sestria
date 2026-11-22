@@ -1,8 +1,8 @@
 extends Control
 # Icona del giocatore: cerchio con sfumatura, anello e un emblema disegnato a mano (12 emblemi, 8 colori).
 const COLORS := [
-	[Color("#ffb84d"),Color("#d9622b")],[Color("#5ad1ff"),Color("#2a6fe0")],[Color("#68e3ae"),Color("#1b9a7a")],[Color("#ff6b86"),Color("#b3243f")],
-	[Color("#9d7bff"),Color("#5a3fd1")],[Color("#ffd86b"),Color("#c89a1a")],[Color("#8fa0d6"),Color("#3a4880")],[Color("#ff8fd0"),Color("#b03a96")]]
+	[Color("#e8a64a"),Color("#8a4a1c")],[Color("#6fa6b8"),Color("#2c5468")],[Color("#8fb86a"),Color("#3f6330")],[Color("#c4485a"),Color("#6a1c2a")],
+	[Color("#a58ac8"),Color("#4a3470")],[Color("#d8c27a"),Color("#7a6020")],[Color("#a0a0aa"),Color("#44444c")],[Color("#c88a6a"),Color("#6a3a24")]]
 const EMBLEM_NAMES := ["Dado","Esagono","Fiamma","Fulmine","Corona","Ascia","Scudo","Freccia","Stella","Luna","Occhio","Sole"]
 var emblem := 0
 var color_index := 0
@@ -35,7 +35,13 @@ func _draw() -> void:
 	draw_circle(center-Vector2(0,radius*.08),radius*.94,pair[1].lerp(pair[0],.35))
 	draw_circle(center-Vector2(0,radius*.22),radius*.66,pair[1].lerp(pair[0],.55))
 	if ring:
-		draw_arc(center,radius,0,TAU,64,Color(1,1,1,.55),maxf(1.5,side*.035),true)
+		# anello di ferro con filo d'ottone e otto rivetti
+		var thick := maxf(2.5,side*.075)
+		draw_arc(center,radius-thick*.5,0,TAU,64,Color("#26262b"),thick,true)
+		draw_arc(center,radius-thick*.5,PI*1.05,PI*1.75,24,Color("#8c8c94"),maxf(1.0,thick*.35),true)
+		draw_arc(center,radius-thick-.5,0,TAU,64,Color("#c8923a"),maxf(1.0,side*.02),true)
+		for i in 8:
+			draw_circle(center+Vector2.from_angle(TAU*i/8.0)*(radius-thick*.5),maxf(1.0,thick*.22),Color("#c9c9d0"))
 	var ink := Color("#10142e")
 	var light := Color(1,1,1,.96)
 	var e := radius*.56

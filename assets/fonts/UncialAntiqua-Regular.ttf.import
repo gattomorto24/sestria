@@ -2,13 +2,13 @@
 
 importer="font_data_dynamic"
 type="FontFile"
-uid="uid://rl2y61cwsxb6"
-path="res://.godot/imported/Outfit.ttf-2d559f8d25f836ad9468f75faa3363db.fontdata"
+uid="uid://bexw16chvewas"
+path="res://.godot/imported/UncialAntiqua-Regular.ttf-90bbe5e204d48850abd60d2c7994f931.fontdata"
 
 [deps]
 
-source_file="res://assets/fonts/Outfit.ttf"
-dest_files=["res://.godot/imported/Outfit.ttf-2d559f8d25f836ad9468f75faa3363db.fontdata"]
+source_file="res://assets/fonts/UncialAntiqua-Regular.ttf"
+dest_files=["res://.godot/imported/UncialAntiqua-Regular.ttf-90bbe5e204d48850abd60d2c7994f931.fontdata"]
 
 [params]
 

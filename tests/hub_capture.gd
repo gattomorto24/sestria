@@ -15,6 +15,7 @@ func run() -> void:
 	root.add_child(game)
 	game.integration = true
 	game.music.stop()
+	game.change_pc(preload("res://scripts/pc_video.gd").defaults(),true)
 	await shot("campaign")
 	var hub: Control = game.ui.hub
 	hub.navigate("campaign",{"selected":"quick"})

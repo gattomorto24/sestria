@@ -2,13 +2,13 @@
 
 importer="font_data_dynamic"
 type="FontFile"
-uid="uid://b0yj6dvx05lhg"
-path="res://.godot/imported/Marcellus-Regular.ttf-325209052197cba3774c9559e73beb63.fontdata"
+uid="uid://bfw0fo8bfabmc"
+path="res://.godot/imported/Alegreya.ttf-abfb5b040d39097d7607663a8ca82829.fontdata"
 
 [deps]
 
-source_file="res://assets/fonts/Marcellus-Regular.ttf"
-dest_files=["res://.godot/imported/Marcellus-Regular.ttf-325209052197cba3774c9559e73beb63.fontdata"]
+source_file="res://assets/fonts/Alegreya.ttf"
+dest_files=["res://.godot/imported/Alegreya.ttf-abfb5b040d39097d7607663a8ca82829.fontdata"]
 
 [params]
 
