@@ -19,12 +19,16 @@ const SETTINGS := [
 	{"id":"fixed_seed","name":"Lanci ripetibili","hint":"Stessi dadi ad ogni tentativo dello stesso capitolo.","options":[[false,"No"],[true,"Sì"]],"default":false}]
 var path: String
 var campaigns: Array = []
+var deleted: Array = []        # id eliminati (servono alla sincronizzazione con Drive)
 
 func _init(storage_path := "user://campaigns.json") -> void:
 	path = storage_path
 	if FileAccess.file_exists(path):
 		var stored = JSON.parse_string(FileAccess.get_file_as_string(path))
 		if stored is Dictionary and int(stored.get("schema",0)) == 1 and stored.get("campaigns") is Array:
+			for id in stored.get("deleted",[]):
+				if str(id).length() >= 4 and deleted.size() < 200:
+					deleted.append(str(id))
 			for item in stored.campaigns:
 				var clean := sanitize(item)
 				if not clean.is_empty() and campaigns.size() < MAX_CAMPAIGNS:
@@ -71,7 +75,7 @@ func save() -> Error:
 	var file := FileAccess.open(path+".tmp",FileAccess.WRITE)
 	if file == null:
 		return FileAccess.get_open_error()
-	file.store_string(JSON.stringify({"schema":1,"campaigns":campaigns}))
+	file.store_string(JSON.stringify({"schema":1,"campaigns":campaigns,"deleted":deleted}))
 	file.flush()
 	file.close()
 	return DirAccess.rename_absolute(ProjectSettings.globalize_path(path+".tmp"),ProjectSettings.globalize_path(path))
@@ -99,6 +103,8 @@ func remove(id: String) -> void:
 	var index := find(id)
 	if index >= 0:
 		campaigns.remove_at(index)
+		if not deleted.has(id):
+			deleted.append(id)
 		save()
 
 func rename(id: String, name: String) -> void:

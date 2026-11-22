@@ -10,7 +10,7 @@ const TITLES := [
 	{"id":"novice","name":"Novizio","level":1},{"id":"player","name":"Giocatore","level":2},{"id":"strategist","name":"Stratega","level":5},
 	{"id":"veteran","name":"Veterano","level":8},{"id":"master","name":"Maestro dei dadi","level":12},{"id":"legend","name":"Leggenda","level":20}]
 var path: String
-var data := {"schema":1,"name":"Giocatore","emblem":0,"color":0,"banner":1,"title":"novice","friend_id":"","created":0}
+var data := {"schema":1,"name":"Giocatore","emblem":0,"color":0,"banner":1,"title":"novice","friend_id":"","created":0,"updated":0}
 
 func _init(storage_path := "user://profile.json") -> void:
 	path = storage_path
@@ -23,6 +23,7 @@ func _init(storage_path := "user://profile.json") -> void:
 			data.banner = clampi(int(stored.get("banner",1)),0,BANNERS.size()-1)
 			data.title = str(stored.get("title","novice"))
 			data.created = int(stored.get("created",0))
+			data.updated = int(stored.get("updated",0))
 			var id := str(stored.get("friend_id",""))
 			if valid_id(id):
 				data.friend_id = id
@@ -73,7 +74,7 @@ func title_name(level: int) -> String:
 static func unlocked_titles(level: int) -> Array:
 	return TITLES.filter(func(t):return int(t.level) <= level)
 
-func update(changes: Dictionary) -> void:
+func update(changes: Dictionary, stamp := true) -> void:
 	if changes.has("name"):
 		data.name = clean_name(changes.name)
 	if changes.has("emblem"):
@@ -84,6 +85,8 @@ func update(changes: Dictionary) -> void:
 		data.banner = clampi(int(changes.banner),0,BANNERS.size()-1)
 	if changes.has("title"):
 		data.title = str(changes.title)
+	if stamp:
+		data.updated = int(Time.get_unix_time_from_system())
 	save()
 
 func save() -> Error:

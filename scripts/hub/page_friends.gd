@@ -48,11 +48,7 @@ static func build(hub: Control, parent: VBoxContainer) -> void:
 	field.text_submitted.connect(func(_t):send.call())
 	Kit.button(side,"INVIA LA RICHIESTA",send,"primary")
 	Kit.paragraph(side,"Non servono account né server: la richiesta passa direttamente dal tuo dispositivo a quello del tuo amico e si consegna quando è online. Se non lo è, riprova da sola.",0.0,14,Kit.DIM)
-	var account = game.account
-	if account != null and account.has_method("available"):
-		Kit.title(side,"Account Google",24)
-		Kit.paragraph(side,"Collega il tuo account Google per riconoscere i tuoi dispositivi. Il salvataggio di amici e progressi su Google Drive è in preparazione.",0.0,14,Kit.MUTED)
-		Kit.button(side,"Accedi con Google" if account.profile.is_empty() else "Collegato: "+str(account.profile.get("name","")),func():account.sign_in(),"secondary")
+	load("res://scripts/hub/drive_panel.gd").build(hub,side)
 	var right := Kit.panel(layout,"wood",22,0)
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	right.size_flags_vertical = Control.SIZE_EXPAND_FILL

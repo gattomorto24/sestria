@@ -8,6 +8,7 @@ var path: String
 var friends: Array = []      # {id,name,emblem,color,seen}
 var incoming: Array = []     # richieste ricevute {id,name,emblem,color,time}
 var outgoing: Array = []     # richieste inviate non ancora accettate {id,time}
+var removed: Array = []      # id rimossi (sincronizzazione con Drive)
 var outbox: Array = []       # messaggi da consegnare {to,t,extra}
 
 func _init(storage_path := "user://friends.json") -> void:
@@ -25,6 +26,9 @@ func _init(storage_path := "user://friends.json") -> void:
 		var entry := person(item)
 		if not entry.is_empty() and incoming.size() < MAX_REQUESTS and find(incoming,entry.id) < 0 and find(friends,entry.id) < 0:
 			incoming.append(entry)
+	for id in stored.get("removed",[]):
+		if Profile.valid_id(str(id)) and removed.size() < 200:
+			removed.append(str(id))
 	for item in stored.get("outgoing",[]):
 		if item is Dictionary and Profile.valid_id(str(item.get("id",""))) and find(outgoing,str(item.id)) < 0 and find(friends,str(item.id)) < 0:
 			outgoing.append({"id":str(item.id),"time":int(item.get("time",0))})
@@ -54,7 +58,7 @@ func save() -> Error:
 	var file := FileAccess.open(path+".tmp",FileAccess.WRITE)
 	if file == null:
 		return FileAccess.get_open_error()
-	file.store_string(JSON.stringify({"schema":1,"friends":friends,"incoming":incoming,"outgoing":outgoing,"outbox":outbox}))
+	file.store_string(JSON.stringify({"schema":1,"friends":friends,"incoming":incoming,"outgoing":outgoing,"outbox":outbox,"removed":removed}))
 	file.flush()
 	file.close()
 	return DirAccess.rename_absolute(ProjectSettings.globalize_path(path+".tmp"),ProjectSettings.globalize_path(path))
@@ -114,6 +118,7 @@ func accept(id: String) -> void:
 	incoming.remove_at(index)
 	if not is_friend(id) and friends.size() < MAX_FRIENDS:
 		friends.append(entry)
+		removed.erase(id)
 	outbox.append({"to":id,"t":"accept"})
 	save()
 
@@ -133,6 +138,8 @@ func remove(id: String) -> void:
 	var index := find(friends,id)
 	if index >= 0:
 		friends.remove_at(index)
+		if not removed.has(id):
+			removed.append(id)
 		outbox.append({"to":id,"t":"remove"})
 		save()
 

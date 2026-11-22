@@ -354,6 +354,8 @@ static func build_system(hub: Control, parent: VBoxContainer) -> void:
 		Installer.build_section(hub,parent)
 	if hub.ui.has_method("show_diagnostics"):
 		Kit.button(parent,"Diagnostica locale",func():hub.ui.show_diagnostics(),"secondary",260)
+	var DrivePanel = load("res://scripts/hub/drive_panel.gd")
+	DrivePanel.build(hub,parent)
 	section(parent,"Interfaccia")
 	Kit.toggle(Kit.setting_row(parent,"Interfaccia classica","Riporta il menu e le impostazioni della versione 4.7. Campagne, Passa e gioca e amici restano nella nuova interfaccia."),false,func(v):
 		if v:

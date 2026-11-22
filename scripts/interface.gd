@@ -828,6 +828,10 @@ func refresh_updates() -> void:
 	if hub != null:
 		hub.refresh_updates()
 
+func refresh_drive() -> void:
+	if hub != null:
+		hub.refresh_drive()
+
 func refresh_friends() -> void:
 	if hub != null:
 		hub.refresh_friends()

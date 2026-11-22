@@ -16,3 +16,7 @@ __pycache__/
 .codex/
 .agents/
 .aws/
+
+# Credenziali del client OAuth di Google Drive: restano solo in locale e si includono nei pacchetti al momento della compilazione
+config/drive_auth.json
+mobile/config/drive_auth.json

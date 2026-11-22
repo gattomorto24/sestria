@@ -39,6 +39,8 @@ var pc_touched := false           # true se l'utente le ha già salvate
 var fps_label: Label
 var profile: RefCounted             # profilo del giocatore (nome, icona, codice amico)
 var campaigns: RefCounted           # campagne salvate
+var drive: Node                   # salvataggio su Google Drive (4.8.1)
+var settings_updated := 0           # ora dell'ultima modifica delle preferenze (per la sincronizzazione)
 var friends: Node                 # amici (4.8)
 var active_campaign := ""           # id della campagna in corso ("" = partita al volo)
 var match_setup := {}               # parametri della partita di campagna in corso
@@ -160,6 +162,10 @@ func _ready() -> void:
 		friends.setup(self)
 		friends.changed.connect(ui.refresh_friends)
 		friends.invited.connect(ui.friend_invited)
+	drive = preload("res://scripts/hub/drive_sync.gd").new()
+	add_child(drive)
+	drive.setup(self)
+	drive.changed.connect(ui.refresh_drive)
 	if Platform.updater_available():
 		updater=preload("res://scripts/desktop_updater.gd").new()
 		add_child(updater)
@@ -191,6 +197,7 @@ func read_settings() -> void:
 		return
 	Bindings.load_from(config)
 	legacy_ui = bool(config.get_value("ui","legacy",false))
+	settings_updated = int(config.get_value("meta","updated",0))
 	start_page = str(config.get_value("game","start_page","campaign"))
 	if not start_page in ["campaign","multiplayer","friends","progress"]:
 		start_page = "campaign"
@@ -208,9 +215,12 @@ func read_settings() -> void:
 	if saved.size() == 3 and saved.all(func(id):return Rules.FAVOR.has(id)):
 		equipped.assign(saved)
 
-func save_settings() -> void:
+func save_settings(stamp := true) -> void:
 	if integration:
 		return
+	if stamp:
+		settings_updated = int(Time.get_unix_time_from_system())
+	config.set_value("meta","updated",settings_updated)
 	config.set_value("game","difficulty",difficulty)
 	config.set_value("game","favors",equipped)
 	config.set_value("game","start_page",start_page)
@@ -286,6 +296,8 @@ func switch_ui(legacy: bool) -> void:
 	if friends:
 		friends.changed.connect(ui.refresh_friends)
 		friends.invited.connect(ui.friend_invited)
+	if drive and not drive.changed.is_connected(ui.refresh_drive):
+		drive.changed.connect(ui.refresh_drive)
 	if "account" in self and account != null and account.has_signal("changed"):
 		account.changed.connect(ui.refresh_profile)
 	if friends:
@@ -293,6 +305,19 @@ func switch_ui(legacy: bool) -> void:
 	if music and not integration and not music.playing:
 		music.play()
 	ui.show_menu()
+
+# Preferenze arrivate da Google Drive (più recenti di quelle di questo dispositivo).
+func apply_synced_settings(s: Dictionary) -> void:
+	difficulty = clampi(int(s.get("difficulty",difficulty)),0,2)
+	var saved: Array = s.get("favors",equipped)
+	if saved.size() == 3 and saved.all(func(id):return Rules.FAVOR.has(str(id))):
+		equipped.assign(saved)
+	if str(s.get("start_page","")) in ["campaign","multiplayer","friends","progress"]:
+		start_page = str(s.start_page)
+	if s.get("quick") is Dictionary:
+		quick_settings = CampaignStore.clean_settings(s.quick)
+	settings_updated = int(s.get("updated",settings_updated))
+	save_settings(false)
 
 func change_music(value: float) -> void:
 	music_volume = value

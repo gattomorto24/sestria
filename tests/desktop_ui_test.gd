@@ -79,6 +79,22 @@ func run() -> void:
 	for tab in ["game","screen","graphics","audio","controls","system"]:
 		hub.navigate("options",{"tab":tab})
 		await snapshot("hub-options-"+tab)
+	hub.navigate("options",{"tab":"system"})
+	await settle()
+	check(not buttons(hub.stage,"ACCEDI CON GOOGLE").is_empty(),"Google Drive: pulsante di accesso")
+	game.drive.state = "code"
+	game.drive.user_code = "ABCD-EFGH"
+	game.drive.code_expires = Time.get_ticks_msec()+600000
+	game.drive.verification_url = "https://www.google.com/device"
+	hub.navigate("options",{"tab":"system"})
+	await snapshot("hub-drive-code")
+	check(not buttons(hub.stage,"Apri la pagina di Google").is_empty(),"Google Drive: codice e pagina di Google")
+	game.drive.state = "signed_in"
+	game.drive.account = {"name":"Prova","email":"prova@example.com"}
+	hub.navigate("friends",{})
+	await settle()
+	check(not buttons(hub.stage,"Sincronizza ora").is_empty(),"Google Drive: collegato, Sincronizza ora")
+	game.drive.state = "off"
 	var up: Node = game.updater
 	for case in [["available","content","AGGIORNA"],["available","package","SCARICA IL PACCHETTO COMPLETO"],["ready","content","RIAVVIA PER APPLICARE"],["ready","package","MOSTRA NELLA CARTELLA DOWNLOAD"]]:
 		up.state = case[0]

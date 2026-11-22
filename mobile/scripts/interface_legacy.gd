@@ -1116,6 +1116,9 @@ func show_diagnostics() -> void:
 # ---- Compatibilità con il gioco 4.8 (interfaccia classica) ----
 var hub: Control = null
 
+func refresh_drive() -> void:
+	pass
+
 func refresh_friends() -> void:
 	pass
 

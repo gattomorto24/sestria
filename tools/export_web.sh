@@ -38,6 +38,7 @@ for f in "${keep[@]}"; do
   [ -f "$out/$f" ] || { echo "Esportazione incompleta: manca $out/$f" >&2; exit 1; }
   cp "$out/$f" "$stage/$f"
 done
+cp tools/web/privacy.html "$stage/privacy.html"
 touch "$stage/.nojekyll"
 printf '{"version":"%s","built":"%s"}\n' "$version" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$stage/version.json"
 if find "$stage" \( -name "*.keystore" -o -name "*.jks" -o -name "*.pem" -o -name "*.p12" -o -name ".env*" -o -name "*.apk" -o -name "*.cfg" \) | grep -q .; then

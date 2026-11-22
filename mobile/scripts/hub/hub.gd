@@ -166,6 +166,14 @@ func refresh_network() -> void:
 	if visible and page == "multiplayer" and not is_instance_valid(modal_layer):
 		rebuild_deferred()
 
+# Il salvataggio su Drive cambia stato (codice da digitare, collegato, sincronizzato): si aggiorna la pagina che lo mostra.
+func refresh_drive() -> void:
+	if not visible or is_instance_valid(modal_layer):
+		return
+	var shows_drive: bool = (page == "friends") or (page == "options" and str(page_state.get("tab","")) == "system")
+	if shows_drive:
+		rebuild_deferred()
+
 func refresh_friends() -> void:
 	if visible and page == "friends" and not is_instance_valid(modal_layer):
 		rebuild_deferred()
@@ -510,10 +518,10 @@ func show_profile() -> void:
 		profile.update({"name":field.text})
 		close_modal()
 		rebuild(),"primary")
-	var google = game.account
-	if google != null and google.has_method("available"):
-		Kit.button(footer,"Account Google" if google.profile.is_empty() else "Google: "+str(google.profile.get("name","")),func():
-			google.sign_in(),"ghost")
+	if game.drive != null and game.drive.available():
+		Kit.button(footer,"Google Drive: "+("collegato" if game.drive.state == "signed_in" else "non collegato"),func():
+			close_modal()
+			navigate("options",{"tab":"system"}),"ghost")
 
 func style_field(field: LineEdit) -> void:
 	field.add_theme_font_override("font",Kit.body_font(500))

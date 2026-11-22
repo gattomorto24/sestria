@@ -10,7 +10,7 @@ const API := "https://api.github.com/repos/"+REPOSITORY+"/releases/latest"
 const APK_PATH := "user://updates/sestria-update.apk"
 const PART_PATH := APK_PATH+".part"
 const MAX_APK := 180*1024*1024
-var current_version := "4.8"
+var current_version := "4.8.1"
 var current_code := 45
 var state := "idle"
 var message := "Cerca le nuove versioni pubblicate su GitHub."
@@ -20,7 +20,7 @@ var last_checked := ""
 var bridge: Object
 var request: HTTPRequest
 var progress_clock := 0.0
-var base_version := "4.8"
+var base_version := "4.8.1"
 var step := ""
 var api := API
 var releases := RELEASES
