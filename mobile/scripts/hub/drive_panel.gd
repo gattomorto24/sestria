@@ -7,7 +7,8 @@ static func build(hub: Control, parent: Node) -> void:
 	var drive: Node = game.drive
 	Kit.title(parent,"Google Drive",22)
 	if drive == null or not drive.available():
-		Kit.paragraph(parent,"Il salvataggio su Google Drive non è configurato in questa versione.",0.0,15,Kit.MUTED)
+		var web: bool = OS.has_feature("web")
+		Kit.paragraph(parent,"Su questo sito il salvataggio su Google Drive arriva con una prossima versione. Su Mac, Windows e Android è già disponibile: collega lì il tuo account e ritroverai i dati." if web else "Il salvataggio su Google Drive non è configurato in questa versione.",0.0,15,Kit.MUTED)
 		return
 	match drive.state:
 		"signed_in":
