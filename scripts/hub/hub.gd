@@ -348,7 +348,7 @@ func modal(title: String, width := 560.0) -> VBoxContainer:
 	var head := Kit.row(column,8)
 	var heading := Kit.title(head,title,30)
 	heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	Kit.button(head,"✕",close_modal,"ghost")
+	Kit.button(head,"X",close_modal,"ghost")
 	Kit.divider(column)
 	var scroll_area := ScrollContainer.new()
 	scroll_area.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -433,16 +433,6 @@ func show_tactics(slot := 0) -> void:
 			Kit.sfx("click")
 			show_tactics(slot),Kit.MOSS)
 		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		var head: Control = card.get_child(0).get_child(0)
-		var icon := TextureRect.new()
-		icon.texture = load("res://assets/icons/favor_%02d.svg" % index)
-		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		icon.custom_minimum_size = Vector2(Kit.scale(26),Kit.scale(26))
-		icon.modulate = Color(.25,.14,.06)
-		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		head.add_child(icon)
-		head.move_child(icon,0)
 	Kit.button(body,"Fatto",close_modal,"primary")
 
 # ---- Profilo ----
