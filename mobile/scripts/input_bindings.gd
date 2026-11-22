@@ -97,3 +97,42 @@ class Capture extends Control:
 		if event is InputEventKey and event.pressed and not event.echo:
 			get_viewport().set_input_as_handled()
 			captured.emit(event.keycode)
+
+# Pagina "Comandi" delle impostazioni per i computer. `settings` è l'istanza di pc_settings.gd.
+static func build_page(settings: RefCounted, parent: Node) -> void:
+	ensure()
+	var ui: Control = settings.ui
+	var game: Node3D = settings.game
+	settings.heading(parent,"TASTIERA")
+	settings.note(parent,"Premi un comando per cambiarlo, poi il nuovo tasto. Esc annulla. Invio conferma sempre e Alt+Invio cambia lo schermo intero.")
+	for entry in ACTIONS:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation",8)
+		parent.add_child(row)
+		var caption: Label = ui.label(row,entry.name,16,ui.IVORY,true)
+		caption.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var key_button: Button = ui.button(row,key_name(current[entry.id]),func():listen(settings,entry.id),170)
+		key_button.name = "Key_"+entry.id
+	settings.heading(parent,"MOUSE")
+	settings.note(parent,"Clic sinistro · Seleziona un dado o un totem\nClic destro · Ispeziona le sei facce del dado")
+	ui.button(parent,"Ripristina i comandi predefiniti",func():
+		reset()
+		game.save_settings()
+		settings.show_page("comandi"))
+
+static func listen(settings: RefCounted, id: String) -> void:
+	var ui: Control = settings.ui
+	var game: Node3D = settings.game
+	var capture := Capture.new()
+	ui.dialog.add_child(capture)
+	var holder: Button = ui.dialog.find_child("Key_"+id,true,false)
+	if holder:
+		holder.text = "Premi un tasto…"
+	capture.captured.connect(func(keycode: int):
+		capture.queue_free()
+		if keycode != KEY_ESCAPE:
+			var problem := assign(id,keycode)
+			if not problem.is_empty():
+				push_warning(problem)
+			game.save_settings()
+		settings.show_page("comandi"))

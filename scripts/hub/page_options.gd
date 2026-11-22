@@ -354,6 +354,10 @@ static func build_system(hub: Control, parent: VBoxContainer) -> void:
 		Installer.build_section(hub,parent)
 	if hub.ui.has_method("show_diagnostics"):
 		Kit.button(parent,"Diagnostica locale",func():hub.ui.show_diagnostics(),"secondary",260)
+	section(parent,"Interfaccia")
+	Kit.toggle(Kit.setting_row(parent,"Interfaccia classica","Riporta il menu e le impostazioni della versione 4.7. Campagne, Passa e gioca e amici restano nella nuova interfaccia."),false,func(v):
+		if v:
+			hub.confirm("Tornare all'interfaccia classica?","Il menu e le impostazioni tornano come nella 4.7. Puoi rimettere la nuova interfaccia quando vuoi, dalle impostazioni.","Torna alla classica",func():hub.game.switch_ui(true)))
 	section(parent,"Dati")
 	Kit.paragraph(parent,"Profilo, campagne, statistiche e progressi sono salvati su questo dispositivo.",0.0,15,Kit.MUTED)
 

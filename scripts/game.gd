@@ -5,6 +5,7 @@ const AI = preload("res://scripts/ai.gd")
 const Die = preload("res://scenes/die.tscn")
 const DieScript = preload("res://scripts/die.gd")
 const UI = preload("res://scripts/interface.gd")
+const UILegacy = preload("res://scripts/interface_legacy.gd")
 const Platform = preload("res://scripts/platform.gd")
 const PCVideo = preload("res://scripts/pc_video.gd")
 const Bindings = preload("res://scripts/input_bindings.gd")
@@ -52,6 +53,7 @@ var acting := 0                     # lato controllato dalla persona che sta gio
 var hotseat_plan := {}              # tattica già scelta dal primo giocatore
 var hotseat_has_plan := false
 var player_names := ["Tu","Avversario"]
+var legacy_ui := false              # interfaccia classica (4.7) al posto della nuova
 var start_page := "campaign"        # scheda del menu aperta all'avvio
 var quick_settings := CampaignStore.default_settings()   # impostazioni della partita al volo
 var music_volume := .51
@@ -139,7 +141,7 @@ func _ready() -> void:
 	combat_fx.reduced = reduced
 	if Platform.pc_available() and not portrait:
 		setup_pc_video()
-	ui = UI.new()
+	ui = (UILegacy if legacy_ui else UI).new()
 	$Interface.add_child(ui)
 	ui.setup(self)
 	profile=ProfileStore.new()
@@ -188,6 +190,7 @@ func read_settings() -> void:
 	if preload("res://scripts/compatibility.gd").load_settings(config) != OK:
 		return
 	Bindings.load_from(config)
+	legacy_ui = bool(config.get_value("ui","legacy",false))
 	start_page = str(config.get_value("game","start_page","campaign"))
 	if not start_page in ["campaign","multiplayer","friends","progress"]:
 		start_page = "campaign"
@@ -211,6 +214,7 @@ func save_settings() -> void:
 	config.set_value("game","difficulty",difficulty)
 	config.set_value("game","favors",equipped)
 	config.set_value("game","start_page",start_page)
+	config.set_value("ui","legacy",legacy_ui)
 	for key in quick_settings:
 		config.set_value("quick",key,quick_settings[key])
 	config.set_value("video","low",reduced)
@@ -259,6 +263,36 @@ func change_quality(value: bool) -> void:
 	table.quality(value)
 	combat_fx.reduced = value
 	save_settings()
+
+# Passa dall'interfaccia nuova a quella classica (e viceversa). Si può fare solo dal menu.
+func switch_ui(legacy: bool) -> void:
+	if phase != "menu" or legacy == legacy_ui:
+		return
+	legacy_ui = legacy
+	save_settings()
+	var old := ui
+	ui = (UILegacy if legacy_ui else UI).new()
+	$Interface.add_child(ui)
+	ui.setup(self)
+	if is_instance_valid(old):
+		old.queue_free()
+	if lan:
+		if not lan.changed.is_connected(ui.refresh_lan):
+			lan.changed.connect(ui.refresh_lan)
+		if not lan.problem.is_connected(ui.lan_problem):
+			lan.problem.connect(ui.lan_problem)
+	if updater and not updater.changed.is_connected(ui.refresh_updates):
+		updater.changed.connect(ui.refresh_updates)
+	if friends:
+		friends.changed.connect(ui.refresh_friends)
+		friends.invited.connect(ui.friend_invited)
+	if "account" in self and account != null and account.has_signal("changed"):
+		account.changed.connect(ui.refresh_profile)
+	if friends:
+		friends.activate(false)
+	if music and not integration and not music.playing:
+		music.play()
+	ui.show_menu()
 
 func change_music(value: float) -> void:
 	music_volume = value
